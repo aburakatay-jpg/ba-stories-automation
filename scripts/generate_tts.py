@@ -6,16 +6,18 @@ Kurulum: pip install edge-tts --break-system-packages
 Kullanım:
   python3 generate_tts.py senaryo.txt cikti.mp3
 
-n8n'de "Execute Command" node'u ile çağrılır.
+n8n/GitHub Actions'da otomatik çağrılır.
 """
 import asyncio
 import sys
 import edge_tts
 
-# Denenebilecek diğer Türkçe sesler: tr-TR-EmelNeural (kadın), tr-TR-AhmetNeural (erkek)
-VOICE = "tr-TR-AhmetNeural"
-RATE = "-8%"   # korku/gerilim anlatımı için biraz yavaşlatılmış tempo
-PITCH = "-2Hz" # hafif daha derin ton
+# Kadın ses denendi - erkek sese göre bu türde genelde daha doğal duyuluyor.
+# Diğer seçenekler: tr-TR-AhmetNeural (erkek)
+# Ses beğenmezsen VOICE değerini değiştirip tekrar test edebilirsin.
+VOICE = "tr-TR-EmelNeural"
+RATE = "-3%"    # hafif yavaşlatılmış, doğal konuşma temposuna yakın
+PITCH = "+0Hz"  # pitch oynamadan bırakıldı - önceki -2Hz robotik/boğuk etki yaratıyordu
 
 
 async def main():

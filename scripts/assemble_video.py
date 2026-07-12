@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """
-Sabit loop arka plan görseli + seslendirme + yakılmış altyazıyı
-tek bir mp4'te birleştirir.
+Sabit loop arka plan görseli + seslendirmeyi tek bir mp4'te birleştirir.
+Çıktı HER ZAMAN 16:9 yatay formatta zorlanır (dikey arka plan videoları
+kullanılsa bile) — bu, YouTube'un videoyu yanlışlıkla "Shorts" olarak
+sınıflandırmasını engeller.
 
-Kurulum: sunucuda ffmpeg kurulu olmalı (apt install ffmpeg)
+Kurulum: sunucuda ffmpeg kurulu olmalı (GitHub Actions runner'da hazır gelir)
 
 Kullanım:
-  python3 assemble_video.py backgrounds/ ses.mp3 altyazi.srt cikti.mp4
-
-backgrounds/ klasöründe birkaç tane 30-60sn'lik atmosferik loop video
-(.mp4) bulunur, her üretimde rastgele biri seçilir.
+  python3 assemble_video.py backgrounds/ ses.mp3 cikti.mp4
 """
 import os
 import random
@@ -18,14 +17,14 @@ import sys
 
 
 def main():
-    if len(sys.argv) != 5:
+    if len(sys.argv) != 4:
         print(
-            "Kullanım: assemble_video.py <backgrounds_klasoru> <ses.mp3> <altyazi.srt> <cikti.mp4>",
+            "Kullanım: assemble_video.py <backgrounds_klasoru> <ses.mp3> <cikti.mp4>",
             file=sys.stderr,
         )
         sys.exit(1)
 
-    bg_dir, audio_path, srt_path, output_path = sys.argv[1:5]
+    bg_dir, audio_path, output_path = sys.argv[1:4]
 
     bg_files = [f for f in os.listdir(bg_dir) if f.lower().endswith((".mp4", ".mov"))]
     if not bg_files:
@@ -34,18 +33,18 @@ def main():
 
     background = os.path.join(bg_dir, random.choice(bg_files))
 
-    # Altyazı stili: beyaz yazı, siyah kontur, alt ortada
-    subtitle_style = (
-        "FontName=Arial,FontSize=20,PrimaryColour=&HFFFFFF&,"
-        "OutlineColour=&H000000&,BorderStyle=1,Outline=2,Shadow=1,"
-        "Alignment=2,MarginV=60"
+    # scale+crop ile HER arka plan videosunu (dikey/kare olsa bile) 1920x1080
+    # 16:9 yatay çerçeveye zorluyoruz -> YouTube'un Shorts'a düşürmesini engeller
+    vf = (
+        "scale=1920:1080:force_original_aspect_ratio=increase,"
+        "crop=1920:1080"
     )
 
     cmd = [
         "ffmpeg", "-y",
         "-stream_loop", "-1", "-i", background,
         "-i", audio_path,
-        "-vf", f"subtitles={srt_path}:force_style='{subtitle_style}'",
+        "-vf", vf,
         "-map", "0:v:0", "-map", "1:a:0",
         "-c:v", "libx264", "-preset", "medium", "-crf", "23",
         "-c:a", "aac", "-b:a", "128k",
