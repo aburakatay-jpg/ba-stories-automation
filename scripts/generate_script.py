@@ -39,29 +39,75 @@ def write_script(theme):
                         "Sen Türkçe bir korku/paranormal YouTube kanalı için "
                         "senaryo yazarısın. Sanki bir forum/itiraf sitesinde "
                         "birinci ağızdan gerçek yaşanmış gibi anlatılan, doğal "
-                        "ve akıcı bir Türkçe korku hikayesi yaz. İlk iki "
-                        "cümlede güçlü bir kanca (hook) olsun. 400-600 kelime, "
-                        "3-5 dakikalık seslendirmeye uygun uzunlukta olsun. "
-                        "Klişe jump-scare yerine gerilim ve belirsizlik "
-                        "kullan. Sonunda net bir açıklama yapma, esrarını "
-                        "koru. Sadece senaryo metnini döndür, başlık veya "
-                        "başka açıklama ekleme."
+                        "ve akıcı bir Türkçe korku hikayesi yaz. "
+                        "UZUNLUK ZORUNLU: 1800-2200 kelime — bu, 10-11 "
+                        "dakikalık bir seslendirmeye denk gelir, kısa "
+                        "kesme. Bu uzunluğa doğal ulaşmak için hikayeyi şu "
+                        "yapıda kur: (1) güçlü bir kanca ile açılış, "
+                        "(2) sıradan bir başlangıç ve karakterlerin/ortamın "
+                        "tanıtımı, (3) ilk tuhaflıklar ve artan şüphe, "
+                        "(4) olayların yoğunlaşması — en az 2-3 ayrı gerilim "
+                        "anı/sahne, her biri bir öncekinden daha rahatsız "
+                        "edici, (5) doruk noktası, (6) esrarını koruyan bir "
+                        "kapanış (net açıklama yapma). Betimlemelerde "
+                        "cömert ol (ortam, sesler, fiziksel tepkiler, iç "
+                        "ses), ama tekrar veya doldurma hissi verme — her "
+                        "paragraf hikayeyi ileri taşısın. Klişe jump-scare "
+                        "yerine yavaş yavaş büyüyen gerilim kullan. Sadece "
+                        "senaryo metnini döndür, başlık veya başka açıklama "
+                        "ekleme."
                     ),
                 },
                 {
                     "role": "user",
                     "content": (
                         f"Tema: {theme['tema']}\nMekan: {theme['mekan']}\n\n"
-                        "Bu tema ve mekana göre özgün bir hikaye yaz."
+                        "Bu tema ve mekana göre, 1800-2200 kelimelik özgün "
+                        "ve sürükleyici bir hikaye yaz."
                     ),
                 },
             ],
             "temperature": 0.9,
+            "max_tokens": 6000,
         },
-        timeout=60,
+        timeout=120,
     )
     resp.raise_for_status()
-    return resp.json()["choices"][0]["message"]["content"].strip()
+    script = resp.json()["choices"][0]["message"]["content"].strip()
+
+    # Model 1800 kelime talimatına rağmen kısa kesebiliyor - eksikse devamını yazdır
+    attempts = 0
+    while len(script.split()) < 1600 and attempts < 3:
+        api_key = os.environ["GROQ_API_KEY"]
+        cont_resp = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}"},
+            json={
+                "model": "llama-3.3-70b-versatile",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "Aşağıdaki Türkçe korku hikayesinin devamını "
+                            "yaz. Aynı üslupta, kaldığı yerden akıcı şekilde "
+                            "devam et, tekrar etme, gerilimi bir üst "
+                            "seviyeye taşı. En az 600 kelime ekle. Sadece "
+                            "devam eden metni döndür, önceki kısmı tekrar "
+                            "yazma."
+                        ),
+                    },
+                    {"role": "user", "content": script},
+                ],
+                "temperature": 0.9,
+                "max_tokens": 4000,
+            },
+            timeout=120,
+        )
+        cont_resp.raise_for_status()
+        script += "\n\n" + cont_resp.json()["choices"][0]["message"]["content"].strip()
+        attempts += 1
+
+    return script
 
 
 def write_title(theme):
