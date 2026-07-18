@@ -3,7 +3,7 @@ name: BA Stories - Haftalık Üretim
 on:
   schedule:
     # Her Pazartesi 09:00 (Türkiye saati, TSİ = UTC+3) -> UTC 06:00
-    - cron: '0 6 * * 2.5'
+    - cron: '0 6 * * 2,5'
   workflow_dispatch: {}   # istersen "Actions" sekmesinden elle de tetikleyebilirsin
 
 jobs:
