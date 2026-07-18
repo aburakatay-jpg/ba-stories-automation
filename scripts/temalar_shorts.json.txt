@@ -1,0 +1,10 @@
+[
+  {"tema": "gece yarısı telefonda gelen tuhaf bir arama", "mekan": "evde yalnız"},
+  {"tema": "aynada bir saniyeliğine görülen fazladan bir yansıma", "mekan": "banyoda"},
+  {"tema": "asansörde normalde olmayan bir kat numarası", "mekan": "apartmanda"},
+  {"tema": "otoyolda gece yarısı aynı arabayı defalarca geçme", "mekan": "karanlık bir yolda"},
+  {"tema": "eve girince fark edilen ufak ama tekinsiz bir değişiklik", "mekan": "evde"},
+  {"tema": "kamerada arka planda görünen açıklanamayan bir figür", "mekan": "balkonda çekilen fotoğrafta"},
+  {"tema": "market kapanırken hoparlörden duyulan tuhaf bir anons", "mekan": "24 saat açık markette"},
+  {"tema": "komşudan gece yarısı gelen tek bir kapı vuruşu", "mekan": "apartman koridorunda"}
+]
