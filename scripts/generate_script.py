@@ -131,16 +131,71 @@ def write_title(theme):
     ).strip('"')
 
 
+def write_description(theme, title):
+    return call_groq(
+        [
+            {
+                "role": "system",
+                "content": (
+                    "YouTube korku videosu için SEO uyumlu bir açıklama "
+                    "yaz. 2-3 cümlelik merak uyandıran bir özet + "
+                    "aşağıya ilgili Türkçe hashtag'ler (en az 8 tane, "
+                    "örn. #korku #paranormal #gerçekhikaye #gizem gibi) "
+                    "ekle. Hikayenin sonunu ifşa etme. Sadece açıklama "
+                    "metnini döndür."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"Başlık: {title}\nTema: {theme['tema']}, Mekan: {theme['mekan']}",
+            },
+        ],
+        temperature=0.7,
+        max_tokens=300,
+        timeout=30,
+    )
+
+
+def write_description(theme, title):
+    return call_groq(
+        [
+            {
+                "role": "system",
+                "content": (
+                    "YouTube korku videosu için SEO uyumlu bir açıklama "
+                    "yaz. 2-3 cümlelik merak uyandıran bir özet + "
+                    "aşağıya ilgili Türkçe hashtag'ler (en az 8 tane, "
+                    "örn. #korku #paranormal #gerçekhikaye #gizem gibi) "
+                    "ekle. Hikayenin sonunu ifşa etme. Sadece açıklama "
+                    "metnini döndür."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"Başlık: {title}\nTema: {theme['tema']}, Mekan: {theme['mekan']}",
+            },
+        ],
+        temperature=0.7,
+        max_tokens=300,
+        timeout=30,
+    )
+
+
 def main():
     theme = pick_theme()
     script = write_script(theme)
     time.sleep(8)
     title = write_title(theme)
 
+    time.sleep(5)
+    description = write_description(theme, title)
+
     with open("output/senaryo.txt", "w", encoding="utf-8") as f:
         f.write(script)
     with open("output/baslik.txt", "w", encoding="utf-8") as f:
         f.write(title)
+    with open("output/aciklama.txt", "w", encoding="utf-8") as f:
+        f.write(description)
 
     print(f"OK: {len(script)} karakterlik senaryo üretildi — '{title}'")
 

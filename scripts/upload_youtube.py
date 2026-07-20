@@ -28,14 +28,16 @@ def get_credentials():
 
 
 def main():
-    if len(sys.argv) != 3:
-        print("Kullanım: upload_youtube.py <video.mp4> <baslik.txt>", file=sys.stderr)
+    if len(sys.argv) != 4:
+        print("Kullanım: upload_youtube.py <video.mp4> <baslik.txt> <aciklama.txt>", file=sys.stderr)
         sys.exit(1)
 
-    video_path, title_path = sys.argv[1], sys.argv[2]
+    video_path, title_path, description_path = sys.argv[1], sys.argv[2], sys.argv[3]
 
     with open(title_path, "r", encoding="utf-8") as f:
         title = f.read().strip()
+    with open(description_path, "r", encoding="utf-8") as f:
+        description = f.read().strip()
 
     creds = get_credentials()
     youtube = build("youtube", "v3", credentials=creds)
@@ -43,10 +45,7 @@ def main():
     body = {
         "snippet": {
             "title": title[:100],
-            "description": (
-                "Bu kanalda anlatılan hikaye bir forum itirafından/gerçek "
-                "anlatımdan uyarlanmıştır.\n\n#korku #paranormal #gerçekhikaye"
-            ),
+            "description": description,
             "tags": ["korku", "paranormal", "gerçek hikaye", "şehir efsanesi"],
             "categoryId": "24",  # Entertainment
         },
