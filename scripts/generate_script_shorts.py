@@ -63,7 +63,7 @@ def write_script(theme):
                     "— bu 45-60 saniyelik seslendirmeye denk gelir. İlk "
                     "cümle anında kanca atmalı (short'larda ilk 2 saniye "
                     "her şey). Tek bir olay/an etrafında dön, dallanma "
-                    "yapma. Sonunda ani ve rahatsız edici bir final "
+                    "yapma. yapma. Anlatıcı ASLA kendi adını söylemesin, sadece birinci ağızdan ('ben') anlatsın. Sonunda ani ve rahatsız edici bir final "
                     "cümlesi olsun, açıklama yapma. Sadece senaryo "
                     "metnini döndür."
                 ),

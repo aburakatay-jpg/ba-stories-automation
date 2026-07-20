@@ -70,7 +70,7 @@ def write_script(theme):
         "koruyan bir kapanış (net açıklama yapma). Betimlemelerde cömert "
         "ol (ortam, sesler, fiziksel tepkiler, iç ses), ama tekrar veya "
         "doldurma hissi verme — her paragraf hikayeyi ileri taşısın. "
-        "Klişe jump-scare yerine yavaş yavaş büyüyen gerilim kullan. "
+        "Klişe  jump-scare yerine yavaş yavaş büyüyengerilim kullan. Anlatıcı ASLA kendi adını söylemesin veya kendine isimle hitap etmesin, sadece birinci ağızdan ('ben') anlatsın — sadece hikayedeki diğer kişilere isim verilebilir."
         "Sadece senaryo metnini döndür, başlık veya başka açıklama ekleme."
     )
     user_prompt = (
