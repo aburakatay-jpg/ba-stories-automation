@@ -6,5 +6,13 @@
   {"tema": "eve girince fark edilen ufak ama tekinsiz bir değişiklik", "mekan": "evde"},
   {"tema": "kamerada arka planda görünen açıklanamayan bir figür", "mekan": "balkonda çekilen fotoğrafta"},
   {"tema": "market kapanırken hoparlörden duyulan tuhaf bir anons", "mekan": "24 saat açık markette"},
-  {"tema": "komşudan gece yarısı gelen tek bir kapı vuruşu", "mekan": "apartman koridorunda"}
+  {"tema": "komşudan gece yarısı gelen tek bir kapı vuruşu", "mekan": "apartman koridorunda"},
+  {"tema": "otobüs son durakta boşalınca fark edilen bir yolcu", "mekan": "gece otobüsünde"},
+  {"tema": "video görüşmede karşı taraftan gelen tuhaf bir donma anı", "mekan": "evde görüntülü aramada"},
+  {"tema": "merdivenlerde sayının bir eksik/fazla gelmesi", "mekan": "eski bir apartman merdiveninde"},
+  {"tema": "kamp ateşinin karşısında beliren bir siluet", "mekan": "gece ormanda"},
+  {"tema": "bebek monitöründen duyulan açıklanamayan bir ses", "mekan": "evde gece"},
+  {"tema": "tünelden geçerken radyonun kendiliğinden kanal değiştirmesi", "mekan": "araba içinde gece"},
+  {"tema": "eski fotoğraflarda fark edilen tanımadık bir kişi", "mekan": "aile albümünde"},
+  {"tema": "gece nöbetinde güvenlik kamerasında görülen bir hareket", "mekan": "boş bir ofis binasında"}
 ]

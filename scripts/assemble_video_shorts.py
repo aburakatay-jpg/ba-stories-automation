@@ -3,6 +3,9 @@
 Tek bir görsele (üretilen thumbnail) Ken Burns efekti uygulayarak dikey
 short videosu üretir, arka plan müziğiyle (ducking'li) birleştirir.
 
+Kamera hareketi videonun TAM SÜRESİNE göre hesaplanır - erken durup
+donmaz, son kareye kadar sürer.
+
 Kullanım:
   python3 assemble_video_shorts.py thumbnail.jpg ses.mp3 cikti.mp4 music shorts_
 """
@@ -28,12 +31,16 @@ def pick_music(music_dir, prefix):
     return os.path.join(music_dir, random.choice(files))
 
 
-ZOOM_VARIANTS = [
-    "z='min(zoom+0.0012,1.4)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'",
-    "z='if(eq(on,0),1.4,max(zoom-0.0012,1.0))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'",
-    "z='min(zoom+0.0010,1.3)':x='if(eq(on,0),0,x+0.5)':y='ih/2-(ih/zoom/2)'",
-    "z='min(zoom+0.0010,1.3)':x='iw/2-(iw/zoom/2)':y='if(eq(on,0),0,y+0.5)'",
-]
+def build_zoom_expr(total_frames, target_zoom=1.3):
+    """Zoom, tam olarak son kareye kadar süren bir hızda ilerler - erken durup donmaz."""
+    increment = (target_zoom - 1.0) / total_frames
+    variants = [
+        f"z='min(zoom+{increment:.8f},{target_zoom})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'",  # zoom-in, merkez
+        f"z='if(eq(on,0),{target_zoom},max(zoom-{increment:.8f},1.0))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'",  # zoom-out
+        f"z='min(zoom+{increment:.8f},{target_zoom})':x='(iw-iw/zoom)*on/{total_frames}':y='ih/2-(ih/zoom/2)'",  # zoom-in + sağa kayma
+        f"z='min(zoom+{increment:.8f},{target_zoom})':x='iw/2-(iw/zoom/2)':y='(ih-ih/zoom)*on/{total_frames}'",  # zoom-in + aşağı kayma
+    ]
+    return random.choice(variants)
 
 
 def main():
@@ -49,7 +56,7 @@ def main():
     duration = get_duration(audio_path)
     fps = 30
     total_frames = int(duration * fps)
-    zoom_expr = random.choice(ZOOM_VARIANTS)
+    zoom_expr = build_zoom_expr(total_frames)
     music_path = pick_music(music_dir, music_prefix)
 
     inputs = ["-loop", "1", "-i", image_path, "-i", audio_path]

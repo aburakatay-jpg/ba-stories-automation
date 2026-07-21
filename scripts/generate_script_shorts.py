@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-temalar_shorts.json'dan rastgele bir tema seçer, Groq API ile KISA
-(150-200 kelime, ~45-60 saniyelik) bir Türkçe short senaryosu yazdırır.
-Çıktı: output/senaryo.txt, output/baslik.txt, output/aciklama.txt
+temalar_shorts.json'dan, SON KULLANILAN TEMALARI HARİÇ TUTARAK rastgele
+bir tema seçer, Groq API ile KISA (150-200 kelime) bir Türkçe short
+senaryosu yazdırır. Çıktı: output/senaryo.txt, output/baslik.txt, output/aciklama.txt
 
 Gerekli ortam değişkeni: GROQ_API_KEY
 """
@@ -16,6 +16,7 @@ import requests
 os.makedirs("output", exist_ok=True)
 
 API_URL = "https://api.groq.com/openai/v1/chat/completions"
+GECMIS_UZUNLUK = 6  # son 6 tema hariç tutulur
 
 
 def call_groq(messages, temperature, max_tokens, timeout=60, max_retries=5):
@@ -44,10 +45,30 @@ def call_groq(messages, temperature, max_tokens, timeout=60, max_retries=5):
 
 
 def pick_theme():
-    path = os.path.join(os.path.dirname(__file__), "temalar_shorts.json")
-    with open(path, "r", encoding="utf-8") as f:
+    base_dir = os.path.dirname(__file__)
+    temalar_path = os.path.join(base_dir, "temalar_shorts.json")
+    gecmis_path = os.path.join(base_dir, "tema_gecmisi_shorts.json")
+
+    with open(temalar_path, "r", encoding="utf-8") as f:
         temalar = json.load(f)
-    return random.choice(temalar)
+
+    gecmis = []
+    if os.path.exists(gecmis_path):
+        with open(gecmis_path, "r", encoding="utf-8") as f:
+            gecmis = json.load(f)
+
+    uygun = [t for t in temalar if t["tema"] not in gecmis]
+    if not uygun:  # hepsi son kullanılanlardaysa (havuz çok küçükse), tüm havuza geri dön
+        uygun = temalar
+
+    secilen = random.choice(uygun)
+
+    gecmis.append(secilen["tema"])
+    gecmis = gecmis[-GECMIS_UZUNLUK:]
+    with open(gecmis_path, "w", encoding="utf-8") as f:
+        json.dump(gecmis, f, ensure_ascii=False, indent=2)
+
+    return secilen
 
 
 def write_script(theme):
@@ -74,7 +95,7 @@ def write_script(theme):
                 "content": f"Tema: {theme['tema']}\nMekan: {theme['mekan']}",
             },
         ],
-        temperature=0.9,
+        temperature=0.95,
         max_tokens=500,
     )
 
