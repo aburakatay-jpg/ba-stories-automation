@@ -196,6 +196,8 @@ def main():
         f.write(title)
     with open("output/aciklama.txt", "w", encoding="utf-8") as f:
         f.write(description)
+    with open("output/tema.json", "w", encoding="utf-8") as f:
+        json.dump(theme, f, ensure_ascii=False)
 
     print(f"OK: {len(script)} karakterlik senaryo üretildi — '{title}'")
 

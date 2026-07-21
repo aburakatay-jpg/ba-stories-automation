@@ -28,11 +28,11 @@ def get_credentials():
 
 
 def main():
-    if len(sys.argv) != 4:
-        print("Kullanım: upload_youtube.py <video.mp4> <baslik.txt> <aciklama.txt>", file=sys.stderr)
+    if len(sys.argv) != 5:
+        print("Kullanım: upload_youtube.py <video.mp4> <baslik.txt> <aciklama.txt> <thumbnail.jpg>", file=sys.stderr)
         sys.exit(1)
 
-    video_path, title_path, description_path = sys.argv[1], sys.argv[2], sys.argv[3]
+    video_path, title_path, description_path, thumbnail_path = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 
     with open(title_path, "r", encoding="utf-8") as f:
         title = f.read().strip()
@@ -61,7 +61,14 @@ def main():
         if status:
             print(f"Yükleniyor: %{int(status.progress() * 100)}")
 
-    print(f"OK: https://youtube.com/watch?v={response['id']}")
+    video_id = response["id"]
+
+    youtube.thumbnails().set(
+        videoId=video_id,
+        media_body=MediaFileUpload(thumbnail_path, mimetype="image/jpeg"),
+    ).execute()
+
+    print(f"OK: https://youtube.com/watch?v={video_id} (thumbnail set edildi)")
 
 
 if __name__ == "__main__":
