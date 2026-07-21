@@ -1,42 +1,62 @@
 #!/usr/bin/env python3
 """
-Dikey (9:16, 1080x1920) short videosu üretir - backgrounds/dikey
-klasöründen rastgele bir klip seçip sesle birleştirir.
+Tek bir görsele (üretilen thumbnail) Ken Burns efekti (yavaş zoom/kaydırma)
+uygulayarak dikey (9:16, 1080x1920) short videosu üretir.
 
 Kullanım:
-  python3 assemble_video_shorts.py backgrounds/dikey ses.mp3 cikti.mp4
+  python3 assemble_video_shorts.py thumbnail.jpg ses.mp3 cikti.mp4
 """
-import os
+import json
 import random
 import subprocess
 import sys
 
 
+def get_duration(path):
+    result = subprocess.run(
+        ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", path],
+        capture_output=True, text=True, check=True,
+    )
+    return float(json.loads(result.stdout)["format"]["duration"])
+
+
+# Birkaç farklı kamera hareketi - her üretimde rastgele biri seçilir, çeşitlilik için
+ZOOM_VARIANTS = [
+    "z='min(zoom+0.0012,1.4)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'",   # yavaş zoom-in, merkez
+    "z='if(eq(on,0),1.4,max(zoom-0.0012,1.0))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'",  # yavaş zoom-out
+    "z='min(zoom+0.0010,1.3)':x='if(eq(on,0),0,x+0.5)':y='ih/2-(ih/zoom/2)'",  # zoom-in + sağa kayma
+    "z='min(zoom+0.0010,1.3)':x='iw/2-(iw/zoom/2)':y='if(eq(on,0),0,y+0.5)'",  # zoom-in + aşağı kayma
+]
+
+
 def main():
     if len(sys.argv) != 4:
-        print("Kullanım: assemble_video_shorts.py <dikey_klasoru> <ses.mp3> <cikti.mp4>", file=sys.stderr)
+        print("Kullanım: assemble_video_shorts.py <thumbnail.jpg> <ses.mp3> <cikti.mp4>", file=sys.stderr)
         sys.exit(1)
 
-    bg_dir, audio_path, output_path = sys.argv[1:4]
+    image_path, audio_path, output_path = sys.argv[1:4]
 
-    bg_files = [f for f in os.listdir(bg_dir) if f.lower().endswith((".mp4", ".mov"))]
-    if not bg_files:
-        print(f"Hata: {bg_dir} içinde arka plan videosu bulunamadı", file=sys.stderr)
-        sys.exit(1)
+    duration = get_duration(audio_path)
+    fps = 30
+    total_frames = int(duration * fps)
 
-    background = os.path.join(bg_dir, random.choice(bg_files))
+    zoom_expr = random.choice(ZOOM_VARIANTS)
 
-    vf = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920"
+    vf = (
+        f"scale=1080:1920:force_original_aspect_ratio=increase,"
+        f"crop=1080:1920,"
+        f"zoompan={zoom_expr}:d={total_frames}:s=1080x1920:fps={fps}"
+    )
 
     cmd = [
         "ffmpeg", "-y",
-        "-stream_loop", "-1", "-i", background,
+        "-loop", "1", "-i", image_path,
         "-i", audio_path,
         "-vf", vf,
         "-map", "0:v:0", "-map", "1:a:0",
         "-c:v", "libx264", "-preset", "medium", "-crf", "23",
         "-c:a", "aac", "-b:a", "128k",
-        "-shortest",
+        "-t", str(duration),
         output_path,
     ]
 

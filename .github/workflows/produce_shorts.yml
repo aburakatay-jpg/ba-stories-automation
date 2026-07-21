@@ -29,11 +29,11 @@ jobs:
       - name: Seslendirme üret (Edge-TTS)
         run: python scripts/generate_tts.py output/senaryo.txt output/ses.mp3
 
-      - name: Short'u kurgula (dikey, FFmpeg)
-        run: python scripts/assemble_video_shorts.py backgrounds/dikey output/ses.mp3 output/video.mp4
-
-      - name: Thumbnail üret
+      - name: Thumbnail/görsel üret
         run: python scripts/generate_thumbnail.py output/tema.json output/baslik.txt output/thumbnail.jpg
+
+      - name: Short'u kurgula (Ken Burns efekti, FFmpeg)
+        run: python scripts/assemble_video_shorts.py output/thumbnail.jpg output/ses.mp3 output/video.mp4
 
       - name: Thumbnail üret
         run: python scripts/generate_thumbnail.py output/tema.json output/baslik.txt output/thumbnail.jpg
