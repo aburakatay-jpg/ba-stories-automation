@@ -33,8 +33,7 @@ jobs:
         run: python scripts/generate_thumbnail.py output/tema.json output/baslik.txt output/thumbnail.jpg
 
       - name: Short'u kurgula (Ken Burns efekti, FFmpeg)
-        run: python scripts/assemble_video_shorts.py output/thumbnail.jpg output/ses.mp3 output/video.mp4
-
+        run: python scripts/assemble_video_shorts.py output/thumbnail.jpg output/ses.mp3 output/video.mp4 music shorts_
       - name: Thumbnail üret
         run: python scripts/generate_thumbnail.py output/tema.json output/baslik.txt output/thumbnail.jpg
 

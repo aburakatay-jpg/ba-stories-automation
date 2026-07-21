@@ -30,8 +30,7 @@ jobs:
         run: python scripts/generate_tts.py output/senaryo.txt output/ses.mp3
 
       - name: Video kurgula (FFmpeg, 16:9 zorlanmış)
-        run: python scripts/assemble_video.py backgrounds/yatay output/ses.mp3 output/video.mp4
-
+        run: python scripts/assemble_video.py backgrounds/yatay output/ses.mp3 output/video.mp4 music vid_
       - name: Thumbnail üret
         run: python scripts/generate_thumbnail.py output/tema.json output/baslik.txt output/thumbnail.jpg
 
