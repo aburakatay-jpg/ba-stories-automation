@@ -10,5 +10,11 @@
   {"tema": "askerlik sırasında nöbet tutarken yaşanan tuhaf bir gece", "mekan": "ücra bir askeri birlik", "seri": null},
   {"tema": "üniversite yurdunda oda arkadaşının ortadan kaybolması", "mekan": "şehir dışında bir üniversite yurdu", "seri": null},
   {"tema": "eski bir sinemanın gösterim sonrası kapanan salonunda kalan biri", "mekan": "kapanmış tarihi bir sinema", "seri": "karanlik_mekanlar"},
-  {"tema": "dağ köyünde her yıl aynı gece tekrarlayan bir olay", "mekan": "Doğu Anadolu'da izole bir köy", "seri": "uc_harfliler"}
+  {"tema": "dağ köyünde her yıl aynı gece tekrarlayan bir olay", "mekan": "Doğu Anadolu'da izole bir köy", "seri": "uc_harfliler"},
+  {"tema": "define arayanların dağda karşılaştığı açıklanamayan olay", "mekan": "Ege'de eski bir define bölgesi", "seri": "uc_harfliler"},
+  {"tema": "kapatılmış bir maden ocağında yaşanan kayıp", "mekan": "terk edilmiş bir maden bölgesi", "seri": "karanlik_mekanlar"},
+  {"tema": "gece treninde tek başına yolculuk sırasında yaşanan olay", "mekan": "gece treni kompartımanında", "seri": null},
+  {"tema": "eski bir öğretmenin anlattığı okuldaki tekinsiz olaylar", "mekan": "kırsal bir köy okulunda", "seri": null},
+  {"tema": "balıkçı teknesinde gece yaşanan açıklanamayan olay", "mekan": "Karadeniz'de açık denizde", "seri": null},
+  {"tema": "eski bir değirmende duyulan sesler ve ortadan kaybolan işçi", "mekan": "terk edilmiş bir değirmen", "seri": "karanlik_mekanlar"}
 ]

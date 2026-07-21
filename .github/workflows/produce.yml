@@ -50,12 +50,12 @@ jobs:
           path: output/
           retention-days: 14
 
-      - name: Seri sayacını kaydet
+      - name: Seri sayacı ve tema geçmişini kaydet
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add scripts/seri_bilgisi.json
-          git diff --staged --quiet || git commit -m "seri sayaci guncellendi [skip ci]"
+          git add scripts/seri_bilgisi.json scripts/tema_gecmisi.json
+          git diff --staged --quiet || git commit -m "seri sayaci ve tema gecmisi guncellendi [skip ci]"
           git push
 
   onay_ve_yukleme:

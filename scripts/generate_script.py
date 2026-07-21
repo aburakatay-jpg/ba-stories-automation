@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
 """
-temalar.json'dan rastgele bir tema seçer, Groq API ile Türkçe forum-itirafı
-tonunda ORİJİNAL bir senaryo yazdırır. Çıktı: output/senaryo.txt, output/baslik.txt
-
-Not: Önceki sürüm Reddit'ten hikaye çekiyordu, ancak GitHub Actions'ın
-sunucu IP'leri Reddit tarafından bot olarak engelleniyor (403 Blocked).
-Bu yüzden dış kaynağa bağımlı olmayan, tema havuzundan üreten bir yaklaşıma
-geçildi — hem daha güvenilir hem de Türk izleyiciye daha uygun.
+temalar.json'dan, SON KULLANILAN TEMALARI HARİÇ TUTARAK rastgele bir tema
+seçer, Groq API ile Türkçe forum-itirafı tonunda ORİJİNAL bir senaryo
+yazdırır. Çıktı: output/senaryo.txt, output/baslik.txt, output/aciklama.txt
 
 Gerekli ortam değişkeni: GROQ_API_KEY
 """
@@ -20,10 +16,10 @@ import requests
 os.makedirs("output", exist_ok=True)
 
 API_URL = "https://api.groq.com/openai/v1/chat/completions"
+GECMIS_UZUNLUK = 8  # son 8 tema hariç tutulur
 
 
 def call_groq(messages, temperature, max_tokens, timeout=120, max_retries=5):
-    """Groq API'ye istek atar, 429 (rate limit) durumunda otomatik bekleyip tekrar dener."""
     api_key = os.environ["GROQ_API_KEY"]
     for attempt in range(max_retries):
         resp = requests.post(
@@ -50,9 +46,30 @@ def call_groq(messages, temperature, max_tokens, timeout=120, max_retries=5):
 
 
 def pick_theme():
-    with open(os.path.join(os.path.dirname(__file__), "temalar.json"), "r", encoding="utf-8") as f:
+    base_dir = os.path.dirname(__file__)
+    temalar_path = os.path.join(base_dir, "temalar.json")
+    gecmis_path = os.path.join(base_dir, "tema_gecmisi.json")
+
+    with open(temalar_path, "r", encoding="utf-8") as f:
         temalar = json.load(f)
-    return random.choice(temalar)
+
+    gecmis = []
+    if os.path.exists(gecmis_path):
+        with open(gecmis_path, "r", encoding="utf-8") as f:
+            gecmis = json.load(f)
+
+    uygun = [t for t in temalar if t["tema"] not in gecmis]
+    if not uygun:
+        uygun = temalar
+
+    secilen = random.choice(uygun)
+
+    gecmis.append(secilen["tema"])
+    gecmis = gecmis[-GECMIS_UZUNLUK:]
+    with open(gecmis_path, "w", encoding="utf-8") as f:
+        json.dump(gecmis, f, ensure_ascii=False, indent=2)
+
+    return secilen
 
 
 def write_script(theme):
@@ -70,8 +87,11 @@ def write_script(theme):
         "koruyan bir kapanış (net açıklama yapma). Betimlemelerde cömert "
         "ol (ortam, sesler, fiziksel tepkiler, iç ses), ama tekrar veya "
         "doldurma hissi verme — her paragraf hikayeyi ileri taşısın. "
-        "Klişe  jump-scare yerine yavaş yavaş büyüyengerilim kullan. Anlatıcı ASLA kendi adını söylemesin veya kendine isimle hitap etmesin, sadece birinci ağızdan ('ben') anlatsın — sadece hikayedeki diğer kişilere isim verilebilir."
-        "Sadece senaryo metnini döndür, başlık veya başka açıklama ekleme."
+        "Klişe jump-scare yerine yavaş yavaş büyüyen gerilim kullan. "
+        "Anlatıcı ASLA kendi adını söylemesin veya kendine isimle hitap "
+        "etmesin, sadece birinci ağızdan ('ben') anlatsın — sadece "
+        "hikayedeki diğer kişilere isim verilebilir. Sadece senaryo "
+        "metnini döndür, başlık veya başka açıklama ekleme."
     )
     user_prompt = (
         f"Tema: {theme['tema']}\nMekan: {theme['mekan']}\n\n"
@@ -155,30 +175,6 @@ def write_description(theme, title):
         timeout=30,
     )
 
-
-def write_description(theme, title):
-    return call_groq(
-        [
-            {
-                "role": "system",
-                "content": (
-                    "YouTube korku videosu için SEO uyumlu bir açıklama "
-                    "yaz. 2-3 cümlelik merak uyandıran bir özet + "
-                    "aşağıya ilgili Türkçe hashtag'ler (en az 8 tane, "
-                    "örn. #korku #paranormal #gerçekhikaye #gizem gibi) "
-                    "ekle. Hikayenin sonunu ifşa etme. Sadece açıklama "
-                    "metnini döndür."
-                ),
-            },
-            {
-                "role": "user",
-                "content": f"Başlık: {title}\nTema: {theme['tema']}, Mekan: {theme['mekan']}",
-            },
-        ],
-        temperature=0.7,
-        max_tokens=300,
-        timeout=30,
-    )
 
 def apply_series(theme, title):
     """Tema bir seriye aitse başlığa seri adı/numarası ekler, playlist ID döndürür."""
