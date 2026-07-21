@@ -3,9 +3,9 @@
 Arka plan klasöründeki BİRDEN FAZLA loop videosunu karıştırıp art arda
 bağlar, anlatım sesiyle ve arka plan müziğiyle birleştirir.
 
-Müzik, anlatıcı konuşurken otomatik olarak kısılır ("ducking" - sidechain
-compression), sessiz anlarda biraz daha belirginleşir. Bu sayede müzik asla
-anlatıcının önüne geçmez.
+Müzik, anlatıcı konuşurken otomatik olarak kısılır ("ducking"). Son
+karışıma loudnorm uygulanır - böylece her video tutarlı, YouTube
+standardına uygun bir ses seviyesinde çıkar.
 
 Çıktı her zaman 16:9 yatay formata zorlanır (Shorts'a düşmesin diye).
 
@@ -81,25 +81,32 @@ def main():
         concat_inputs += f"[v{idx}]"
     filter_parts.append(f"{concat_inputs}concat=n={len(sequence)}:v=1:a=0[outv]")
 
+    # Anlatım sesini karışımdan önce normalize et - TTS video video farklı
+    # seviyede çıkabiliyor, bunu burada eşitliyoruz
+    filter_parts.append(f"[{narration_idx}:a]loudnorm=I=-16:TP=-1.5:LRA=11[narr_norm]")
+
     if music_path:
         music_idx = narration_idx + 1
         inputs += ["-stream_loop", "-1", "-i", music_path]
         filter_parts.append(f"[{music_idx}:a]volume=0.15[music_vol]")
         filter_parts.append(
-            f"[music_vol][{narration_idx}:a]sidechaincompress="
+            f"[music_vol][narr_norm]sidechaincompress="
             f"threshold=0.05:ratio=8:attack=20:release=400:makeup=1[music_duck]"
         )
-        filter_parts.append(f"[{narration_idx}:a][music_duck]amix=inputs=2:duration=first:normalize=0[aout]")
-        audio_map = "[aout]"
+        filter_parts.append(f"[narr_norm][music_duck]amix=inputs=2:duration=first:normalize=0[premix]")
     else:
-        audio_map = f"{narration_idx}:a:0"
+        filter_parts.append("[narr_norm]anull[premix]")
+
+    # Son karışıma da bir kez daha loudnorm - müzik eklenince toplam seviye
+    # değişmiş olabilir, final çıktıyı standart seviyeye sabitliyoruz
+    filter_parts.append("[premix]loudnorm=I=-14:TP=-1.5:LRA=11[aout]")
 
     filter_complex = ";".join(filter_parts)
 
     cmd = [
         "ffmpeg", "-y", *inputs,
         "-filter_complex", filter_complex,
-        "-map", "[outv]", "-map", audio_map,
+        "-map", "[outv]", "-map", "[aout]",
         "-c:v", "libx264", "-preset", "medium", "-crf", "23",
         "-c:a", "aac", "-b:a", "128k",
         "-shortest",
@@ -107,7 +114,7 @@ def main():
     ]
 
     subprocess.run(cmd, check=True)
-    print(f"OK: {output_path} ({len(sequence)} klip, müzik: {'var' if music_path else 'yok'})")
+    print(f"OK: {output_path} ({len(sequence)} klip, müzik: {'var' if music_path else 'yok'}, loudnorm uygulandı)")
 
 
 if __name__ == "__main__":
