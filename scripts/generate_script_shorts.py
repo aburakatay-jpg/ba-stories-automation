@@ -2,7 +2,7 @@
 """
 temalar_shorts.json'dan rastgele bir tema seçer, Groq API ile KISA
 (150-200 kelime, ~45-60 saniyelik) bir Türkçe short senaryosu yazdırır.
-Çıktı: output/senaryo.txt, output/baslik.txt
+Çıktı: output/senaryo.txt, output/baslik.txt, output/aciklama.txt
 
 Gerekli ortam değişkeni: GROQ_API_KEY
 """
@@ -63,9 +63,10 @@ def write_script(theme):
                     "— bu 45-60 saniyelik seslendirmeye denk gelir. İlk "
                     "cümle anında kanca atmalı (short'larda ilk 2 saniye "
                     "her şey). Tek bir olay/an etrafında dön, dallanma "
-                    "yapma. yapma. Anlatıcı ASLA kendi adını söylemesin, sadece birinci ağızdan ('ben') anlatsın. Sonunda ani ve rahatsız edici bir final "
-                    "cümlesi olsun, açıklama yapma. Sadece senaryo "
-                    "metnini döndür."
+                    "yapma. Anlatıcı ASLA kendi adını söylemesin, sadece "
+                    "birinci ağızdan ('ben') anlatsın. Sonunda ani ve "
+                    "rahatsız edici bir final cümlesi olsun, açıklama "
+                    "yapma. Sadece senaryo metnini döndür."
                 ),
             },
             {
@@ -123,81 +124,6 @@ def write_description(theme, title):
     )
 
 
-def write_description(theme, title):
-    return call_groq(
-        [
-            {
-                "role": "system",
-                "content": (
-                    "YouTube korku videosu için SEO uyumlu bir açıklama "
-                    "yaz. 2-3 cümlelik merak uyandıran bir özet + "
-                    "aşağıya ilgili Türkçe hashtag'ler (en az 8 tane, "
-                    "örn. #korku #paranormal #gerçekhikaye #gizem gibi) "
-                    "ekle. Hikayenin sonunu ifşa etme. Sadece açıklama "
-                    "metnini döndür."
-                ),
-            },
-            {
-                "role": "user",
-                "content": f"Başlık: {title}\nTema: {theme['tema']}, Mekan: {theme['mekan']}",
-            },
-        ],
-        temperature=0.7,
-        max_tokens=300,
-        timeout=30,
-    )
-
-
-def write_description(theme, title):
-    return call_groq(
-        [
-            {
-                "role": "system",
-                "content": (
-                    "YouTube korku videosu için SEO uyumlu bir açıklama "
-                    "yaz. 2-3 cümlelik merak uyandıran bir özet + "
-                    "aşağıya ilgili Türkçe hashtag'ler (en az 8 tane, "
-                    "örn. #korku #paranormal #gerçekhikaye #gizem gibi) "
-                    "ekle. Hikayenin sonunu ifşa etme. Sadece açıklama "
-                    "metnini döndür."
-                ),
-            },
-            {
-                "role": "user",
-                "content": f"Başlık: {title}\nTema: {theme['tema']}, Mekan: {theme['mekan']}",
-            },
-        ],
-        temperature=0.7,
-        max_tokens=300,
-        timeout=30,
-    )
-
-
-def write_description(theme, title):
-    return call_groq(
-        [
-            {
-                "role": "system",
-                "content": (
-                    "YouTube korku videosu için SEO uyumlu bir açıklama "
-                    "yaz. 2-3 cümlelik merak uyandıran bir özet + "
-                    "aşağıya ilgili Türkçe hashtag'ler (en az 8 tane, "
-                    "örn. #korku #paranormal #gerçekhikaye #gizem gibi) "
-                    "ekle. Hikayenin sonunu ifşa etme. Sadece açıklama "
-                    "metnini döndür."
-                ),
-            },
-            {
-                "role": "user",
-                "content": f"Başlık: {title}\nTema: {theme['tema']}, Mekan: {theme['mekan']}",
-            },
-        ],
-        temperature=0.7,
-        max_tokens=300,
-        timeout=30,
-    )
-
-
 def main():
     theme = pick_theme()
     script = write_script(theme)
@@ -215,8 +141,11 @@ def main():
         f.write(description)
     with open("output/tema.json", "w", encoding="utf-8") as f:
         json.dump(theme, f, ensure_ascii=False)
+    with open("output/playlist_id.txt", "w", encoding="utf-8") as f:
+        f.write("")
 
-    print(f"OK: {len(script)} karakterlik senaryo üretildi — '{title}'")
+    print(f"OK: {len(script)} karakterlik short senaryosu üretildi — '{title}'")
+
 
 if __name__ == "__main__":
     main()

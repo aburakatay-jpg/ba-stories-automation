@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """
-Refresh token kullanarak YouTube'a video yükler (insansız/unattended çalışır).
+Refresh token kullanarak YouTube'a video yükler, thumbnail set eder,
+ve tema bir seriye aitse videoyu ilgili playlist'e ekler.
 
 Gerekli ortam değişkenleri:
   YT_CLIENT_ID, YT_CLIENT_SECRET, YT_REFRESH_TOKEN
-
-Bu üçünü almak için önce get_youtube_refresh_token.py'yi kendi PC'nde
-BİR KERE çalıştırman gerekiyor (bkz. KURULUM_GITHUB.md).
 """
 import os
 import sys
@@ -28,16 +26,21 @@ def get_credentials():
 
 
 def main():
-    if len(sys.argv) != 5:
-        print("Kullanım: upload_youtube.py <video.mp4> <baslik.txt> <aciklama.txt> <thumbnail.jpg>", file=sys.stderr)
+    if len(sys.argv) != 6:
+        print(
+            "Kullanım: upload_youtube.py <video.mp4> <baslik.txt> <aciklama.txt> <thumbnail.jpg> <playlist_id.txt>",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
-    video_path, title_path, description_path, thumbnail_path = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+    video_path, title_path, description_path, thumbnail_path, playlist_path = sys.argv[1:6]
 
     with open(title_path, "r", encoding="utf-8") as f:
         title = f.read().strip()
     with open(description_path, "r", encoding="utf-8") as f:
         description = f.read().strip()
+    with open(playlist_path, "r", encoding="utf-8") as f:
+        playlist_id = f.read().strip()
 
     creds = get_credentials()
     youtube = build("youtube", "v3", credentials=creds)
@@ -47,7 +50,7 @@ def main():
             "title": title[:100],
             "description": description,
             "tags": ["korku", "paranormal", "gerçek hikaye", "şehir efsanesi"],
-            "categoryId": "24",  # Entertainment
+            "categoryId": "24",
         },
         "status": {"privacyStatus": "public"},
     }
@@ -67,6 +70,18 @@ def main():
         videoId=video_id,
         media_body=MediaFileUpload(thumbnail_path, mimetype="image/jpeg"),
     ).execute()
+
+    if playlist_id:
+        youtube.playlistItems().insert(
+            part="snippet",
+            body={
+                "snippet": {
+                    "playlistId": playlist_id,
+                    "resourceId": {"kind": "youtube#video", "videoId": video_id},
+                }
+            },
+        ).execute()
+        print(f"Playlist'e eklendi: {playlist_id}")
 
     print(f"OK: https://youtube.com/watch?v={video_id} (thumbnail set edildi)")
 

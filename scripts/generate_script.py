@@ -180,12 +180,30 @@ def write_description(theme, title):
         timeout=30,
     )
 
+def apply_series(theme, title):
+    """Tema bir seriye aitse başlığa seri adı/numarası ekler, playlist ID döndürür."""
+    seri_path = os.path.join(os.path.dirname(__file__), "seri_bilgisi.json")
+    with open(seri_path, "r", encoding="utf-8") as f:
+        seriler = json.load(f)
+
+    seri_key = theme.get("seri")
+    if not seri_key or seri_key not in seriler:
+        return title, ""
+
+    seriler[seri_key]["sayac"] += 1
+    with open(seri_path, "w", encoding="utf-8") as f:
+        json.dump(seriler, f, ensure_ascii=False, indent=2)
+
+    yeni_baslik = f"{seriler[seri_key]['ad']} #{seriler[seri_key]['sayac']}: {title}"
+    return yeni_baslik, seriler[seri_key]["playlist_id"]
+
 
 def main():
     theme = pick_theme()
     script = write_script(theme)
     time.sleep(8)
     title = write_title(theme)
+    title, playlist_id = apply_series(theme, title)
 
     time.sleep(5)
     description = write_description(theme, title)
@@ -198,6 +216,8 @@ def main():
         f.write(description)
     with open("output/tema.json", "w", encoding="utf-8") as f:
         json.dump(theme, f, ensure_ascii=False)
+    with open("output/playlist_id.txt", "w", encoding="utf-8") as f:
+        f.write(playlist_id)
 
     print(f"OK: {len(script)} karakterlik senaryo üretildi — '{title}'")
 
