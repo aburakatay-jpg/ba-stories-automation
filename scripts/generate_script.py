@@ -2,7 +2,8 @@
 """
 temalar.json'dan, SON KULLANILAN TEMALARI HARİÇ TUTARAK rastgele bir tema
 seçer, Groq API ile Türkçe forum-itirafı tonunda ORİJİNAL bir senaryo
-yazdırır. Çıktı: output/senaryo.txt, output/baslik.txt, output/aciklama.txt
+yazdırır, sonra bir "düzelti" geçişiyle imla/yabancı kelime hatalarını
+otomatik temizler. Çıktı: output/senaryo.txt, output/baslik.txt, output/aciklama.txt
 
 Gerekli ortam değişkeni: GROQ_API_KEY
 """
@@ -16,7 +17,7 @@ import requests
 os.makedirs("output", exist_ok=True)
 
 API_URL = "https://api.groq.com/openai/v1/chat/completions"
-GECMIS_UZUNLUK = 8  # son 8 tema hariç tutulur
+GECMIS_UZUNLUK = 8
 
 
 def call_groq(messages, temperature, max_tokens, timeout=120, max_retries=5):
@@ -90,8 +91,13 @@ def write_script(theme):
         "Klişe jump-scare yerine yavaş yavaş büyüyen gerilim kullan. "
         "Anlatıcı ASLA kendi adını söylemesin veya kendine isimle hitap "
         "etmesin, sadece birinci ağızdan ('ben') anlatsın — sadece "
-        "hikayedeki diğer kişilere isim verilebilir. Sadece senaryo "
-        "metnini döndür, başlık veya başka açıklama ekleme."
+        "hikayedeki diğer kişilere isim verilebilir. DİL KURALI: metin "
+        "SADECE düzgün, standart yazım kurallarına uygun Türkçe olacak. "
+        "Tek bir İngilizce kelime, marka adı ya da yabancı sözcük bile "
+        "kullanma. Uydurma, hatalı çekimlenmiş veya var olmayan kelime "
+        "kullanma - her kelime gerçek, doğru yazılmış bir Türkçe kelime "
+        "olmalı. Sadece senaryo metnini döndür, başlık veya başka "
+        "açıklama ekleme."
     )
     user_prompt = (
         f"Tema: {theme['tema']}\nMekan: {theme['mekan']}\n\n"
@@ -116,8 +122,11 @@ def write_script(theme):
                         "Aşağıdaki Türkçe korku hikayesinin devamını yaz. "
                         "Aynı üslupta, kaldığı yerden akıcı şekilde devam "
                         "et, tekrar etme, gerilimi bir üst seviyeye taşı. "
-                        "En az 600 kelime ekle. Sadece devam eden metni "
-                        "döndür, önceki kısmı tekrar yazma."
+                        "En az 600 kelime ekle. SADECE düzgün, standart "
+                        "yazım kurallarına uygun Türkçe kullan, İngilizce "
+                        "kelime veya uydurma/hatalı kelime kullanma. "
+                        "Sadece devam eden metni döndür, önceki kısmı "
+                        "tekrar yazma."
                     ),
                 },
                 {"role": "user", "content": script},
@@ -129,6 +138,30 @@ def write_script(theme):
         attempts += 1
 
     return script
+
+
+def proofread_script(script):
+    """Metni bir kez daha okutup imla hatalarını ve yabancı kelimeleri temizler."""
+    return call_groq(
+        [
+            {
+                "role": "system",
+                "content": (
+                    "Sen bir Türkçe dil editörüsün. Sana verilen metni "
+                    "dikkatlice gözden geçir ve SADECE şu hataları "
+                    "düzelt: (1) yazım/imla hataları, (2) var olmayan "
+                    "veya hatalı çekimlenmiş kelimeler, (3) İngilizce "
+                    "veya yabancı kelimeleri doğru Türkçe karşılığıyla "
+                    "değiştir. Metnin anlamını, uzunluğunu, üslubunu ve "
+                    "cümle yapısını DEĞİŞTİRME - sadece hataları düzelt. "
+                    "Sadece düzeltilmiş metni döndür, açıklama ekleme."
+                ),
+            },
+            {"role": "user", "content": script},
+        ],
+        temperature=0.3,
+        max_tokens=6000,
+    )
 
 
 def write_title(theme):
@@ -177,7 +210,6 @@ def write_description(theme, title):
 
 
 def apply_series(theme, title):
-    """Tema bir seriye aitse başlığa seri adı/numarası ekler, playlist ID döndürür."""
     seri_path = os.path.join(os.path.dirname(__file__), "seri_bilgisi.json")
     with open(seri_path, "r", encoding="utf-8") as f:
         seriler = json.load(f)
@@ -197,6 +229,10 @@ def apply_series(theme, title):
 def main():
     theme = pick_theme()
     script = write_script(theme)
+
+    time.sleep(8)
+    script = proofread_script(script)
+
     time.sleep(8)
     title = write_title(theme)
     title, playlist_id = apply_series(theme, title)

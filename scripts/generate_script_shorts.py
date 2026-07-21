@@ -2,7 +2,8 @@
 """
 temalar_shorts.json'dan, SON KULLANILAN TEMALARI HARİÇ TUTARAK rastgele
 bir tema seçer, Groq API ile KISA (150-200 kelime) bir Türkçe short
-senaryosu yazdırır. Çıktı: output/senaryo.txt, output/baslik.txt, output/aciklama.txt
+senaryosu yazdırır, sonra bir "düzelti" geçişiyle imla/yabancı kelime
+hatalarını otomatik temizler. Çıktı: output/senaryo.txt, output/baslik.txt, output/aciklama.txt
 
 Gerekli ortam değişkeni: GROQ_API_KEY
 """
@@ -16,7 +17,7 @@ import requests
 os.makedirs("output", exist_ok=True)
 
 API_URL = "https://api.groq.com/openai/v1/chat/completions"
-GECMIS_UZUNLUK = 6  # son 6 tema hariç tutulur
+GECMIS_UZUNLUK = 6
 
 
 def call_groq(messages, temperature, max_tokens, timeout=60, max_retries=5):
@@ -58,7 +59,7 @@ def pick_theme():
             gecmis = json.load(f)
 
     uygun = [t for t in temalar if t["tema"] not in gecmis]
-    if not uygun:  # hepsi son kullanılanlardaysa (havuz çok küçükse), tüm havuza geri dön
+    if not uygun:
         uygun = temalar
 
     secilen = random.choice(uygun)
@@ -82,12 +83,15 @@ def write_script(theme):
                     "gerçek yaşanmış gibi anlatılan, çok kısa ve çarpıcı "
                     "bir korku anısı yaz. UZUNLUK ZORUNLU: 150-200 kelime "
                     "— bu 45-60 saniyelik seslendirmeye denk gelir. İlk "
-                    "cümle anında kanca atmalı (short'larda ilk 2 saniye "
-                    "her şey). Tek bir olay/an etrafında dön, dallanma "
-                    "yapma. Anlatıcı ASLA kendi adını söylemesin, sadece "
-                    "birinci ağızdan ('ben') anlatsın. Sonunda ani ve "
-                    "rahatsız edici bir final cümlesi olsun, açıklama "
-                    "yapma. Sadece senaryo metnini döndür."
+                    "cümle anında kanca atmalı. Tek bir olay/an etrafında "
+                    "dön, dallanma yapma. Anlatıcı ASLA kendi adını "
+                    "söylemesin, sadece birinci ağızdan ('ben') anlatsın. "
+                    "Sonunda ani ve rahatsız edici bir final cümlesi "
+                    "olsun, açıklama yapma. DİL KURALI: metin SADECE "
+                    "düzgün, standart yazım kurallarına uygun Türkçe "
+                    "olacak. Tek bir İngilizce kelime bile kullanma. "
+                    "Uydurma veya hatalı çekimlenmiş kelime kullanma. "
+                    "Sadece senaryo metnini döndür."
                 ),
             },
             {
@@ -96,6 +100,29 @@ def write_script(theme):
             },
         ],
         temperature=0.95,
+        max_tokens=500,
+    )
+
+
+def proofread_script(script):
+    return call_groq(
+        [
+            {
+                "role": "system",
+                "content": (
+                    "Sen bir Türkçe dil editörüsün. Sana verilen metni "
+                    "dikkatlice gözden geçir ve SADECE şu hataları "
+                    "düzelt: (1) yazım/imla hataları, (2) var olmayan "
+                    "veya hatalı çekimlenmiş kelimeler, (3) İngilizce "
+                    "veya yabancı kelimeleri doğru Türkçe karşılığıyla "
+                    "değiştir. Metnin anlamını, uzunluğunu, üslubunu ve "
+                    "cümle yapısını DEĞİŞTİRME - sadece hataları düzelt. "
+                    "Sadece düzeltilmiş metni döndür, açıklama ekleme."
+                ),
+            },
+            {"role": "user", "content": script},
+        ],
+        temperature=0.3,
         max_tokens=500,
     )
 
@@ -148,6 +175,10 @@ def write_description(theme, title):
 def main():
     theme = pick_theme()
     script = write_script(theme)
+
+    time.sleep(5)
+    script = proofread_script(script)
+
     time.sleep(5)
     title = write_title(theme)
 
