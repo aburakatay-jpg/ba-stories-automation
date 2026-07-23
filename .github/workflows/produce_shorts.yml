@@ -91,7 +91,8 @@ jobs:
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
         run: python scripts/upload_youtube.py output/video.mp4 output/baslik.txt output/aciklama.txt output/thumbnail.jpg output/playlist_id.txt
-        bildirim:
+
+  bildirim:
     needs: [generate, onay_ve_yukleme]
     runs-on: ubuntu-latest
     if: failure()
