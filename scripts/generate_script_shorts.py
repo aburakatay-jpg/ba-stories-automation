@@ -171,13 +171,46 @@ def write_description(theme, title):
         timeout=30,
     )
 
+def write_cta():
+    return call_groq(
+        [
+            {
+                "role": "system",
+                "content": (
+                    "Türkçe bir korku/paranormal YouTube kanalı için, "
+                    "videonun sonuna eklenecek kısa (2-3 cümle) ve doğal "
+                    "bir kapanış metni yaz. Sanki anlatıcı hikayeyi "
+                    "bitirdikten sonra izleyiciye dönüyormuş gibi, sohbet "
+                    "tarzında olsun. Şu unsurları içersin: (1) hikayenin "
+                    "gerçek mi kurgu mu olduğu sorusu, (2) yorumlara "
+                    "davet, (3) abone ol çağrısı. Klişe ve yapay "
+                    "gelmesin, samimi ve kısa olsun. Sadece metni "
+                    "döndür."
+                ),
+            },
+            {
+                "role": "user",
+                "content": "Kanalımız için bir kapanış metni yaz.",
+            },
+        ],
+        temperature=0.8,
+        max_tokens=150,
+        timeout=30,
+    )
+
+
+def apply_series(theme, title):
 
 def main():
     theme = pick_theme()
     script = write_script(theme)
 
-    time.sleep(5)
+    time.sleep(8)
     script = proofread_script(script)
+
+    time.sleep(5)
+    cta = write_cta()
+    script = script + "\n\n" + cta
 
     time.sleep(5)
     title = write_title(theme)
