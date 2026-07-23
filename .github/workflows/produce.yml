@@ -34,15 +34,6 @@ jobs:
       - name: Thumbnail üret
         run: python scripts/generate_thumbnail.py output/tema.json output/baslik.txt output/thumbnail.jpg
 
-      - name: Thumbnail üret
-        run: python scripts/generate_thumbnail.py output/tema.json output/baslik.txt output/thumbnail.jpg
-
-      - name: Thumbnail üret
-        run: python scripts/generate_thumbnail.py output/tema.json output/baslik.txt output/thumbnail.jpg
-
-      - name: Thumbnail üret
-        run: python scripts/generate_thumbnail.py output/tema.json output/baslik.txt output/thumbnail.jpg
-
       - name: Videoyu artifact olarak sakla
         uses: actions/upload-artifact@v4
         with:
