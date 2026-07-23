@@ -199,8 +199,6 @@ def write_cta():
     )
 
 
-def apply_series(theme, title):
-
 def main():
     theme = pick_theme()
     script = write_script(theme)
