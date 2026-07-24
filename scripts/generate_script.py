@@ -141,28 +141,37 @@ def write_script(theme):
 
 
 def proofread_script(script):
-    """Metni bir kez daha okutup imla hatalarını ve yabancı kelimeleri temizler."""
-    return call_groq(
-        [
-            {
-                "role": "system",
-                "content": (
-                    "Sen bir Türkçe dil editörüsün. Sana verilen metni "
-                    "dikkatlice gözden geçir ve SADECE şu hataları "
-                    "düzelt: (1) yazım/imla hataları, (2) var olmayan "
-                    "veya hatalı çekimlenmiş kelimeler, (3) İngilizce "
-                    "veya yabancı kelimeleri doğru Türkçe karşılığıyla "
-                    "değiştir. Metnin anlamını, uzunluğunu, üslubunu ve "
-                    "cümle yapısını DEĞİŞTİRME - sadece hataları düzelt. "
-                    "Sadece düzeltilmiş metni döndür, açıklama ekleme."
-                ),
-            },
-            {"role": "user", "content": script},
-        ],
-        temperature=0.3,
-        max_tokens=6000,
+    """Metni parçalara bölerek okutup imla hatalarını ve yabancı kelimeleri temizler."""
+    system_msg = (
+        "Sen bir Türkçe dil editörüsün. Sana verilen metni "
+        "dikkatlice gözden geçir ve SADECE şu hataları "
+        "düzelt: (1) yazım/imla hataları, (2) var olmayan "
+        "veya hatalı çekimlenmiş kelimeler, (3) İngilizce "
+        "veya yabancı kelimeleri doğru Türkçe karşılığıyla "
+        "değiştir. Metnin anlamını, uzunluğunu, üslubunu ve "
+        "cümle yapısını DEĞİŞTİRME - sadece hataları düzelt. "
+        "Sadece düzeltilmiş metni döndür, açıklama ekleme."
     )
 
+    paragraphs = [p.strip() for p in script.split("\n\n") if p.strip()]
+    chunk_size = 3
+    corrected_chunks = []
+
+    for i in range(0, len(paragraphs), chunk_size):
+        chunk = "\n\n".join(paragraphs[i:i + chunk_size])
+        corrected = call_groq(
+            [
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": chunk},
+            ],
+            temperature=0.3,
+            max_tokens=2000,
+        )
+        corrected_chunks.append(corrected)
+        if i + chunk_size < len(paragraphs):
+            time.sleep(5)
+
+    return "\n\n".join(corrected_chunks)
 
 def write_title(theme):
     return call_groq(
