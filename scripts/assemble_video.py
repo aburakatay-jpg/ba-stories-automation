@@ -32,6 +32,8 @@ def build_clip_sequence(bg_dir, target_duration):
     if not bg_files:
         raise RuntimeError(f"{bg_dir} içinde arka plan videosu bulunamadı")
 
+    # Maksimum 8 klip kullan - fazla klip FFmpeg filter_complex sınırını aşıyor
+    MAX_CLIPS = 8
     random.shuffle(bg_files)
     sequence, total = [], 0.0
     i = 0
@@ -42,6 +44,10 @@ def build_clip_sequence(bg_dir, target_duration):
         i += 1
         if i % len(bg_files) == 0:
             random.shuffle(bg_files)
+        # Klip sayısı MAX_CLIPS'e ulaştıysa son klibi loop'la doldur
+        if len(sequence) >= MAX_CLIPS:
+            break
+
     return sequence
 
 
