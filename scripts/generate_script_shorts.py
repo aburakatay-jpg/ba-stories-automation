@@ -35,8 +35,8 @@ def call_groq(messages, temperature, max_tokens, timeout=60, max_retries=5):
             timeout=timeout,
         )
         if resp.status_code == 429:
-            wait = float(resp.headers.get("retry-after", 15))
-            wait = max(wait, 10) * (attempt + 1)
+            wait = float(resp.headers.get("retry-after", 30))
+            wait = min(wait, 60)
             print(f"Rate limit'e takıldık, {wait:.0f} saniye bekleniyor...")
             time.sleep(wait)
             continue
