@@ -26,14 +26,18 @@ def get_credentials():
 
 
 def main():
-    if len(sys.argv) != 6:
+    if len(sys.argv) not in (5, 6):
         print(
-            "Kullanım: upload_youtube.py <video.mp4> <baslik.txt> <aciklama.txt> <thumbnail.jpg> <playlist_id.txt>",
+            "Kullanım: upload_youtube.py <video.mp4> <baslik.txt> <aciklama.txt> [thumbnail.jpg] <playlist_id.txt>",
             file=sys.stderr,
         )
         sys.exit(1)
 
-    video_path, title_path, description_path, thumbnail_path, playlist_path = sys.argv[1:6]
+    if len(sys.argv) == 6:
+        video_path, title_path, description_path, thumbnail_path, playlist_path = sys.argv[1:6]
+    else:
+        video_path, title_path, description_path, playlist_path = sys.argv[1:5]
+        thumbnail_path = None
 
     with open(title_path, "r", encoding="utf-8") as f:
         title = f.read().strip()

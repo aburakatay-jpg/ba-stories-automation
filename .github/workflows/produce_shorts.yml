@@ -29,9 +29,6 @@ jobs:
       - name: Seslendirme üret (Edge-TTS)
         run: python scripts/generate_tts.py output/senaryo.txt output/ses.mp3
 
-      - name: Thumbnail/görsel üret
-        run: python scripts/generate_thumbnail.py output/tema.json output/baslik.txt output/thumbnail.jpg
-
       - name: Short'u kurgula (Ken Burns efekti, FFmpeg)
         run: python scripts/assemble_video_shorts.py output/thumbnail.jpg output/ses.mp3 output/video.mp4 music shorts_
       - name: Thumbnail üret
@@ -90,7 +87,7 @@ jobs:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
-        run: python scripts/upload_youtube.py output/video.mp4 output/baslik.txt output/aciklama.txt output/thumbnail.jpg output/playlist_id.txt
+        run: python scripts/upload_youtube.py output/video.mp4 output/baslik.txt output/aciklama.txt output/playlist_id.txt
 
   bildirim:
     needs: [generate, onay_ve_yukleme]
