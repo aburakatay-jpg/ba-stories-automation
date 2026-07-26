@@ -70,10 +70,14 @@ def main():
 
     video_id = response["id"]
 
-    youtube.thumbnails().set(
-        videoId=video_id,
-        media_body=MediaFileUpload(thumbnail_path, mimetype="image/jpeg"),
-    ).execute()
+    if thumbnail_path and os.path.exists(thumbnail_path) and os.path.getsize(thumbnail_path) > 1000:
+        youtube.thumbnails().set(
+            videoId=video_id,
+            media_body=MediaFileUpload(thumbnail_path, mimetype="image/jpeg"),
+        ).execute()
+        print("Thumbnail set edildi.")
+    else:
+        print("Thumbnail yok veya atlanıyor.")
 
     if playlist_id:
         youtube.playlistItems().insert(
