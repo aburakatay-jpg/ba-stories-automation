@@ -81,10 +81,10 @@ def main():
             "-i", audio_path,
             "-stream_loop", "-1", "-i", music_path,
             "-filter_complex",
-            "[0:a]loudnorm=I=-16:TP=-1.5:LRA=11[narr];"
-            "[1:a]volume=0.12[music];"
-            "[music][narr]sidechaincompress=threshold=0.05:ratio=6:attack=20:release=400[ducked];"
-            "[narr][ducked]amix=inputs=2:duration=first:normalize=0[premix];"
+            "[0:a]loudnorm=I=-16:TP=-1.5:LRA=11[narr_norm];"
+            "[1:a]volume=0.12[music_vol];"
+            "[music_vol][narr_norm]sidechaincompress=threshold=0.05:ratio=6:attack=20:release=400[ducked];"
+            "[narr_norm][ducked]amix=inputs=2:duration=first:normalize=0[premix];"
             "[premix]loudnorm=I=-14:TP=-1.5:LRA=11[aout]",
             "-map", "[aout]",
             "-c:a", "aac", "-b:a", "128k",
