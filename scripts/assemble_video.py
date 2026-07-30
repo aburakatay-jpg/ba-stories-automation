@@ -1,13 +1,7 @@
 #!/usr/bin/env python3
 """
-Arka plan klasöründeki BİRDEN FAZLA loop videosunu karıştırıp art arda
-bağlar, anlatım sesiyle ve arka plan müziğiyle birleştirir.
-
-Müzik, anlatıcı konuşurken otomatik olarak kısılır ("ducking"). Son
-karışıma loudnorm uygulanır - böylece her video tutarlı, YouTube
-standardına uygun bir ses seviyesinde çıkar.
-
-Çıktı her zaman 16:9 yatay formata zorlanır (Shorts'a düşmesin diye).
+Arka plan klasöründeki loop videolarını birleştirip anlatım sesi ve
+müzikle birleştirir. 16:9 yatay format zorlanır.
 
 Kullanım:
   python3 assemble_video.py backgrounds/yatay ses.mp3 cikti.mp4 music vid_
@@ -17,6 +11,7 @@ import os
 import random
 import subprocess
 import sys
+import tempfile
 
 
 def get_duration(path):
@@ -25,30 +20,6 @@ def get_duration(path):
         capture_output=True, text=True, check=True,
     )
     return float(json.loads(result.stdout)["format"]["duration"])
-
-
-def build_clip_sequence(bg_dir, target_duration):
-    bg_files = [os.path.join(bg_dir, f) for f in os.listdir(bg_dir) if f.lower().endswith((".mp4", ".mov"))]
-    if not bg_files:
-        raise RuntimeError(f"{bg_dir} içinde arka plan videosu bulunamadı")
-
-    # Maksimum 8 klip kullan - fazla klip FFmpeg filter_complex sınırını aşıyor
-    MAX_CLIPS = 8
-    random.shuffle(bg_files)
-    sequence, total = [], 0.0
-    i = 0
-    while total < target_duration:
-        clip = bg_files[i % len(bg_files)]
-        sequence.append(clip)
-        total += get_duration(clip)
-        i += 1
-        if i % len(bg_files) == 0:
-            random.shuffle(bg_files)
-        # Klip sayısı MAX_CLIPS'e ulaştıysa son klibi loop'la doldur
-        if len(sequence) >= MAX_CLIPS:
-            break
-
-    return sequence
 
 
 def pick_music(music_dir, prefix):
@@ -60,67 +31,89 @@ def pick_music(music_dir, prefix):
 
 def main():
     if len(sys.argv) != 6:
-        print(
-            "Kullanım: assemble_video.py <backgrounds_klasoru> <ses.mp3> <cikti.mp4> <music_klasoru> <music_onek>",
-            file=sys.stderr,
-        )
+        print("Kullanım: assemble_video.py <bg_dir> <ses.mp3> <cikti.mp4> <music_dir> <music_prefix>", file=sys.stderr)
         sys.exit(1)
 
     bg_dir, audio_path, output_path, music_dir, music_prefix = sys.argv[1:6]
     audio_duration = get_duration(audio_path)
-    sequence = build_clip_sequence(bg_dir, audio_duration)
     music_path = pick_music(music_dir, music_prefix)
 
-    inputs = []
-    for clip in sequence:
-        inputs += ["-i", clip]
-    narration_idx = len(sequence)
-    inputs += ["-i", audio_path]
+    # Arka plan videolarını listele
+    bg_files = [os.path.join(bg_dir, f) for f in os.listdir(bg_dir) if f.lower().endswith((".mp4", ".mov"))]
+    if not bg_files:
+        raise RuntimeError(f"{bg_dir} içinde arka plan videosu bulunamadı")
 
-    filter_parts = []
-    concat_inputs = ""
-    for idx in range(len(sequence)):
-        filter_parts.append(
-            f"[{idx}:v]scale=1920:1080:force_original_aspect_ratio=increase,"
-            f"crop=1920:1080,setsar=1[v{idx}]"
-        )
-        concat_inputs += f"[v{idx}]"
-    filter_parts.append(f"{concat_inputs}concat=n={len(sequence)}:v=1:a=0[outv]")
+    # Geçici concat listesi dosyası oluştur
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8") as f:
+        concat_list = f.name
+        total = 0.0
+        used = []
+        random.shuffle(bg_files)
+        i = 0
+        while total < audio_duration:
+            clip = bg_files[i % len(bg_files)]
+            used.append(clip)
+            total += get_duration(clip)
+            f.write(f"file '{os.path.abspath(clip)}'\n")
+            i += 1
+            if i % len(bg_files) == 0:
+                random.shuffle(bg_files)
+            if len(used) >= 6:
+                break
 
-    # Anlatım sesini karışımdan önce normalize et - TTS video video farklı
-    # seviyede çıkabiliyor, bunu burada eşitliyoruz
-    filter_parts.append(f"[{narration_idx}:a]loudnorm=I=-16:TP=-1.5:LRA=11[narr_norm]")
-
-    if music_path:
-        music_idx = narration_idx + 1
-        inputs += ["-stream_loop", "-1", "-i", music_path]
-        filter_parts.append(f"[{music_idx}:a]volume=0.15[music_vol]")
-        filter_parts.append(
-            f"[music_vol][narr_norm]sidechaincompress="
-            f"threshold=0.05:ratio=8:attack=20:release=400:makeup=1[music_duck]"
-        )
-        filter_parts.append(f"[narr_norm][music_duck]amix=inputs=2:duration=first:normalize=0[premix]")
-    else:
-        filter_parts.append("[narr_norm]anull[premix]")
-
-    # Son karışıma da bir kez daha loudnorm - müzik eklenince toplam seviye
-    # değişmiş olabilir, final çıktıyı standart seviyeye sabitliyoruz
-    filter_parts.append("[premix]loudnorm=I=-14:TP=-1.5:LRA=11[aout]")
-
-    filter_complex = ";".join(filter_parts)
-
-    cmd = [
-        "ffmpeg", "-y", *inputs,
-        "-filter_complex", filter_complex,
-        "-map", "[outv]", "-map", "[aout]",
+    # Adım 1: Videoları birleştir ve scale et
+    temp_video = output_path + "_temp_video.mp4"
+    subprocess.run([
+        "ffmpeg", "-y",
+        "-f", "concat", "-safe", "0", "-i", concat_list,
+        "-vf", "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1",
         "-c:v", "libx264", "-preset", "medium", "-crf", "23",
-        "-c:a", "aac", "-b:a", "128k",
+        "-an", temp_video,
+    ], check=True)
+
+    os.unlink(concat_list)
+
+    # Adım 2: Sesi karıştır (anlatım + müzik + loudnorm)
+    temp_audio = output_path + "_temp_audio.aac"
+    if music_path:
+        subprocess.run([
+            "ffmpeg", "-y",
+            "-i", audio_path,
+            "-stream_loop", "-1", "-i", music_path,
+            "-filter_complex",
+            "[0:a]loudnorm=I=-16:TP=-1.5:LRA=11[narr];"
+            "[1:a]volume=0.12[music];"
+            "[music][narr]sidechaincompress=threshold=0.05:ratio=6:attack=20:release=400[ducked];"
+            "[narr][ducked]amix=inputs=2:duration=first:normalize=0[premix];"
+            "[premix]loudnorm=I=-14:TP=-1.5:LRA=11[aout]",
+            "-map", "[aout]",
+            "-c:a", "aac", "-b:a", "128k",
+            "-t", str(audio_duration),
+            temp_audio,
+        ], check=True)
+    else:
+        subprocess.run([
+            "ffmpeg", "-y",
+            "-i", audio_path,
+            "-af", "loudnorm=I=-14:TP=-1.5:LRA=11",
+            "-c:a", "aac", "-b:a", "128k",
+            temp_audio,
+        ], check=True)
+
+    # Adım 3: Video + ses birleştir
+    subprocess.run([
+        "ffmpeg", "-y",
+        "-i", temp_video,
+        "-i", temp_audio,
+        "-c:v", "copy", "-c:a", "copy",
         "-shortest",
         output_path,
-    ]
+    ], check=True)
 
-    subprocess.run(cmd, check=True)
-    print(f"OK: {output_path} ({len(sequence)} klip, müzik: {'var' if music_path else 'yok'}, loudnorm uygulandı)")
+    os.unlink(temp_video)
+    os.unlink(temp_audio)
+
+    print(f"OK: {output_path} ({len(used)} klip, müzik: {'var' if music_path else 'yok'})")
 
 
 if __name__ == "__main__":
