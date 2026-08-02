@@ -45,17 +45,6 @@ def call_gemini(prompt, temperature=0.9, max_tokens=500, max_retries=5):
         return resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
     raise RuntimeError("Gemini API'ye çok denemeden sonra bile ulaşılamadı")
         )
-        if resp.status_code in (429, 503):
-            wait = min(float(resp.headers.get("retry-after", 30)), 60)
-            print(f"Rate limit'e takıldık, {wait:.0f} saniye bekleniyor...")
-            time.sleep(wait)
-            continue
-        if not resp.ok:
-            print(f"Hata kodu: {resp.status_code}, yanıt: {resp.text[:500]}")
-            resp.raise_for_status()
-        resp.raise_for_status()
-        return resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-    raise RuntimeError("Gemini API'ye çok denemeden sonra bile ulaşılamadı")
 
 
 def pick_theme():
