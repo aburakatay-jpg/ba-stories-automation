@@ -90,4 +90,78 @@ def write_script(theme):
 def proofread_script(script):
     prompt = (
         f"Sen bir Türkçe dil editörüsün. Sana verilen metni dikkatlice gözden "
-        f"geçir ve SADECE şu hataları düzelt: (1)
+        f"geçir ve SADECE şu hataları düzelt: (1) yazım/imla hataları, (2) var "
+        f"olmayan veya hatalı çekimlenmiş kelimeler, (3) İngilizce veya yabancı "
+        f"kelimeleri doğru Türkçe karşılığıyla değiştir. Metnin anlamını, "
+        f"uzunluğunu, üslubunu ve cümle yapısını DEĞİŞTİRME - sadece hataları "
+        f"düzelt. Sadece düzeltilmiş metni döndür, açıklama ekleme.\n\n{script}"
+    )
+    return call_gemini(prompt, temperature=0.3, max_tokens=600)
+
+
+def write_title(theme):
+    prompt = (
+        f"YouTube Shorts korku videosu için çok kısa (en fazla 8 kelime), merak "
+        f"uyandıran bir Türkçe başlık yaz. Soru formatı veya gizem vurgusu iyi "
+        f"çalışır. Sonuna #shorts ekle. Sadece başlığı döndür, tırnak kullanma.\n\n"
+        f"Tema: {theme['tema']}, Mekan: {theme['mekan']}"
+    )
+    return call_gemini(prompt, temperature=0.8, max_tokens=40).strip('"')
+
+
+def write_description(theme, title):
+    prompt = (
+        f"YouTube korku videosu için SEO uyumlu bir açıklama yaz. 2-3 cümlelik "
+        f"merak uyandıran bir özet + aşağıya ilgili Türkçe hashtag'ler (en az 8 "
+        f"tane, örn. #korku #paranormal #gerçekhikaye #gizem gibi) ekle. Hikayenin "
+        f"sonunu ifşa etme. Sadece açıklama metnini döndür.\n\n"
+        f"Başlık: {title}\nTema: {theme['tema']}, Mekan: {theme['mekan']}"
+    )
+    return call_gemini(prompt, temperature=0.7, max_tokens=300)
+
+
+def write_cta():
+    prompt = (
+        f"Türkçe bir korku/paranormal YouTube kanalı için, videonun sonuna "
+        f"eklenecek kısa (2-3 cümle) ve doğal bir kapanış metni yaz. Sanki "
+        f"anlatıcı hikayeyi bitirdikten sonra izleyiciye dönüyormuş gibi, sohbet "
+        f"tarzında olsun. Şu unsurları içersin: (1) hikayenin gerçek mi kurgu mu "
+        f"olduğu sorusu, (2) yorumlara davet, (3) abone ol çağrısı. Klişe ve "
+        f"yapay gelmesin, samimi ve kısa olsun. Sadece metni döndür."
+    )
+    return call_gemini(prompt, temperature=0.8, max_tokens=150)
+
+
+def main():
+    theme = pick_theme()
+    script = write_script(theme)
+
+    time.sleep(2)
+    script = proofread_script(script)
+
+    time.sleep(2)
+    cta = write_cta()
+    script = script + "\n\n" + cta
+
+    time.sleep(2)
+    title = write_title(theme)
+
+    time.sleep(2)
+    description = write_description(theme, title)
+
+    with open("output/senaryo.txt", "w", encoding="utf-8") as f:
+        f.write(script)
+    with open("output/baslik.txt", "w", encoding="utf-8") as f:
+        f.write(title)
+    with open("output/aciklama.txt", "w", encoding="utf-8") as f:
+        f.write(description)
+    with open("output/tema.json", "w", encoding="utf-8") as f:
+        json.dump(theme, f, ensure_ascii=False)
+    with open("output/playlist_id.txt", "w", encoding="utf-8") as f:
+        f.write("")
+
+    print(f"OK: {len(script)} karakterlik short senaryosu üretildi — '{title}'")
+
+
+if __name__ == "__main__":
+    main()
