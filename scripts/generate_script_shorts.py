@@ -33,6 +33,18 @@ def call_gemini(prompt, temperature=0.9, max_tokens=500, max_retries=5):
             },
             timeout=60,
         )
+        print(f"Gemini yanıt kodu: {resp.status_code}")
+        if resp.status_code == 429:
+            wait = 30
+            print(f"Rate limit, {wait} saniye bekleniyor (deneme {attempt+1})...")
+            time.sleep(wait)
+            continue
+        if not resp.ok:
+            print(f"HATA: {resp.status_code} - {resp.text[:1000]}")
+            raise RuntimeError(f"Gemini API hatası: {resp.status_code}")
+        return resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+    raise RuntimeError("Gemini API'ye çok denemeden sonra bile ulaşılamadı")
+        )
         if resp.status_code in (429, 503):
             wait = min(float(resp.headers.get("retry-after", 30)), 60)
             print(f"Rate limit'e takıldık, {wait:.0f} saniye bekleniyor...")
