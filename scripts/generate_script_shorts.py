@@ -15,7 +15,8 @@ import requests
 
 os.makedirs("output", exist_ok=True)
 
-API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"GECMIS_UZUNLUK = 6
+API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent"
+GECMIS_UZUNLUK = 6
 
 
 def call_gemini(prompt, temperature=0.9, max_tokens=500, max_retries=5):
