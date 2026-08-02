@@ -44,7 +44,7 @@ def call_gemini(prompt, temperature=0.9, max_tokens=500, max_retries=5):
             raise RuntimeError(f"Gemini API hatası: {resp.status_code}")
         return resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
     raise RuntimeError("Gemini API'ye çok denemeden sonra bile ulaşılamadı")
-        )
+    
 
 
 def pick_theme():
