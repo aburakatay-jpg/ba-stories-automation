@@ -111,8 +111,14 @@ def write_script(theme):
         max_tokens=6000,
     )
 
+        # Maksimum 1600 kelime (≈10 dk) - daha uzunsa kes
+    words = script.split()
+    if len(words) > 1700:
+        script = " ".join(words[:1700])
+
     attempts = 0
-    while len(script.split()) < 1600 and attempts < 3:
+    while len(script.split()) < 1400 and attempts < 2:
+
         time.sleep(8)
         cont = call_groq(
             [
