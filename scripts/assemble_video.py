@@ -87,17 +87,21 @@ def main():
             "[premix]loudnorm=I=-14:TP=-1.5:LRA=11[aout]",
             "-map", "[aout]",
             "-c:a", "aac", "-b:a", "128k",
-            "-t", str(audio_duration),
+            "-t", str(max_duration),
+
             temp_audio,
         ], check=True)
     else:
-        subprocess.run([
-            "ffmpeg", "-y",
-            "-i", audio_path,
-            "-af", "loudnorm=I=-14:TP=-1.5:LRA=11",
-            "-c:a", "aac", "-b:a", "128k",
-            temp_audio,
-        ], check=True)
+            max_duration = min(audio_duration, 660)  # maksimum 11 dakika
+    subprocess.run([
+        "ffmpeg", "-y",
+        "-stream_loop", "-1", "-f", "concat", "-safe", "0", "-i", concat_list,
+        "-vf", "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1",
+        "-c:v", "libx264", "-preset", "medium", "-crf", "23",
+        "-t", str(max_duration),
+        "-an", temp_video,
+    ], check=True)
+
 
     # Adım 3: Video + ses birleştir
     subprocess.run([
