@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
-"""
-Arka plan klasöründeki loop videolarını birleştirip anlatım sesi ve
-müzikle birleştirir. 16:9 yatay format zorlanır.
-
-Kullanım:
-  python3 assemble_video.py backgrounds/yatay ses.mp3 cikti.mp4 music vid_
-"""
 import json
 import os
 import random
 import subprocess
 import sys
 import tempfile
+
+MAX_DURATION = 660  # maksimum 11 dakika
 
 
 def get_duration(path):
@@ -35,15 +30,13 @@ def main():
         sys.exit(1)
 
     bg_dir, audio_path, output_path, music_dir, music_prefix = sys.argv[1:6]
-    audio_duration = get_duration(audio_path)
+    audio_duration = min(get_duration(audio_path), MAX_DURATION)
     music_path = pick_music(music_dir, music_prefix)
 
-    # Arka plan videolarını listele
     bg_files = [os.path.join(bg_dir, f) for f in os.listdir(bg_dir) if f.lower().endswith((".mp4", ".mov"))]
     if not bg_files:
         raise RuntimeError(f"{bg_dir} içinde arka plan videosu bulunamadı")
 
-    # Geçici concat listesi dosyası oluştur
     with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8") as f:
         concat_list = f.name
         total = 0.0
@@ -61,22 +54,22 @@ def main():
             if len(used) >= 6:
                 break
 
-    # Adım 1: Videoları birleştir ve scale et
+    # Adım 1: Videoları birleştir
     temp_video = output_path + "_temp_video.mp4"
     subprocess.run([
         "ffmpeg", "-y",
         "-f", "concat", "-safe", "0", "-i", concat_list,
         "-vf", "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1",
         "-c:v", "libx264", "-preset", "medium", "-crf", "23",
+        "-t", str(audio_duration),
         "-an", temp_video,
     ], check=True)
-
     os.unlink(concat_list)
 
-    # Adım 2: Sesi karıştır (anlatım + müzik + loudnorm)
+    # Adım 2: Sesi karıştır
     temp_audio = output_path + "_temp_audio.aac"
     if music_path:
-       subprocess.run([
+        subprocess.run([
             "ffmpeg", "-y",
             "-i", audio_path,
             "-stream_loop", "-1", "-i", music_path,
@@ -87,21 +80,18 @@ def main():
             "[premix]loudnorm=I=-14:TP=-1.5:LRA=11[aout]",
             "-map", "[aout]",
             "-c:a", "aac", "-b:a", "128k",
-            "-t", str(max_duration),
-
+            "-t", str(audio_duration),
             temp_audio,
         ], check=True)
     else:
-            max_duration = min(audio_duration, 660)  # maksimum 11 dakika
-    subprocess.run([
-        "ffmpeg", "-y",
-        "-stream_loop", "-1", "-f", "concat", "-safe", "0", "-i", concat_list,
-        "-vf", "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1",
-        "-c:v", "libx264", "-preset", "medium", "-crf", "23",
-        "-t", str(max_duration),
-        "-an", temp_video,
-    ], check=True)
-
+        subprocess.run([
+            "ffmpeg", "-y",
+            "-i", audio_path,
+            "-af", "loudnorm=I=-14:TP=-1.5:LRA=11",
+            "-c:a", "aac", "-b:a", "128k",
+            "-t", str(audio_duration),
+            temp_audio,
+        ], check=True)
 
     # Adım 3: Video + ses birleştir
     subprocess.run([
@@ -115,7 +105,6 @@ def main():
 
     os.unlink(temp_video)
     os.unlink(temp_audio)
-
     print(f"OK: {output_path} ({len(used)} klip, müzik: {'var' if music_path else 'yok'})")
 
 
