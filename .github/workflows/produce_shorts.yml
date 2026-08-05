@@ -19,7 +19,7 @@ jobs:
       - name: Bağımlılıkları kur
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg
-          pip install edge-tts requests
+          pip install requests
 
       - name: Kısa senaryo yaz (Gemini)
         env:
