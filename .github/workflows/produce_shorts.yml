@@ -26,9 +26,10 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python scripts/generate_script_shorts.py
 
-      - name: Seslendirme üret (Edge-TTS)
+      - name: Seslendirme üret (Google WaveNet)
+        env:
+          GOOGLE_TTS_API_KEY: ${{ secrets.GOOGLE_TTS_API_KEY }}
         run: python scripts/generate_tts.py output/senaryo.txt output/ses.mp3
-
       - name: Görsel üret (video için)
         run: python scripts/generate_thumbnail.py output/tema.json output/baslik.txt output/thumbnail.jpg
 
