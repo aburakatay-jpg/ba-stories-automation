@@ -99,11 +99,24 @@ def write_script(theme):
         "olmalı. Sadece senaryo metnini döndür, başlık veya başka "
         "açıklama ekleme."
     )
-    user_prompt = (
-        f"Tema: {theme['tema']}\nMekan: {theme['mekan']}\n\n"
-        "Bu tema ve mekana göre, 1800-2200 kelimelik özgün ve sürükleyici "
-        "bir hikaye yaz."
+       anlatici = theme.get("anlatici", "kadin")
+    anlatici_tanim = (
+        "Anlatıcı: Otuzlu yaşlarında, sakin ama içten bir kadın. "
+        "Sesi titrek değil ama hafif kırılgan, sanki yaşananları "
+        "hâlâ sindirmeye çalışıyormuş gibi anlatıyor."
+        if anlatici == "kadin" else
+        "Anlatıcı: Ellili yaşlarında, ağır ve derin bir erkek. "
+        "Sesi sağlam ve kontrollü ama anlattıkça bir tedirginlik "
+        "sızıyor, sanki bazı şeyleri ilk kez dile getiriyor."
     )
+
+    user_prompt = (
+        f"Tema: {theme['tema']}\nMekan: {theme['mekan']}\n"
+        f"{anlatici_tanim}\n\n"
+        "Bu tema, mekan ve anlatıcı profiline göre, 1800-2200 kelimelik "
+        "özgün ve sürükleyici bir hikaye yaz."
+    )
+
 
     script = call_groq(
         [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
