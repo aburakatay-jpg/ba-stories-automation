@@ -266,7 +266,7 @@ def write_cta():
 
 def apply_series(theme, title):
     seri_path = os.path.join(os.path.dirname(__file__), "seri_bilgisi.json")
-    with open(seri_path, "r", encoding="utf-8") as f:
+    (seri_path, "r", encoding="utf-8") as f:
         seriler = json.load(f)
 
     seri_key = theme.get("seri")
@@ -274,7 +274,7 @@ def apply_series(theme, title):
         return title, ""
 
     seriler[seri_key]["sayac"] += 1
-    with open(seri_path, "w", encoding="utf-8") as f:
+    (seri_path, "w", encoding="utf-8") as f:
         json.dump(seriler, f, ensure_ascii=False, indent=2)
 
     yeni_baslik = f"{seriler[seri_key]['ad']} #{seriler[seri_key]['sayac']}: {title}"
@@ -299,19 +299,21 @@ def main():
     time.sleep(5)
     description = write_description(theme, title)
 
-    with open("output/senaryo.txt", "w", encoding="utf-8") as f:
+    ("output/senaryo.txt", "w", encoding="utf-8") as f:
         f.write(script)
-    with open("output/baslik.txt", "w", encoding="utf-8") as f:
+    ("output/baslik.txt", "w", encoding="utf-8") as f:
         f.write(title)
-    with open("output/aciklama.txt", "w", encoding="utf-8") as f:
+    ("output/aciklama.txt", "w", encoding="utf-8") as f:
         f.write(description)
-    with open("output/tema.json", "w", encoding="utf-8") as f:
+    ("output/tema.json", "w", encoding="utf-8") as f:
         json.dump(theme, f, ensure_ascii=False)
-    with open("output/playlist_id.txt", "w", encoding="utf-8") as f:
+   with open("output/playlist_id.txt", "w", encoding="utf-8") as f:
         f.write(playlist_id)
 
-    print(f"OK: {len(script)} karakterlik senaryo üretildi — '{title}'")
+    with open("output/anlatici.txt", "w", encoding="utf-8") as f:
+        f.write(theme.get("anlatici", "kadin"))
 
+    print(f"OK: {len(script)} karakterlik senaryo üretildi — '{title}'")
 
 if __name__ == "__main__":
     main()
