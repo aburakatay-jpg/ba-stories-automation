@@ -2,8 +2,7 @@
 """
 temalar.json'dan, SON KULLANILAN TEMALARI HARİÇ TUTARAK rastgele bir tema
 seçer, Groq API ile Türkçe forum-itirafı tonunda ORİJİNAL bir senaryo
-yazdırır, sonra bir "düzelti" geçişiyle imla/yabancı kelime hatalarını
-otomatik temizler. Çıktı: output/senaryo.txt, output/baslik.txt, output/aciklama.txt
+yazdırır. Çıktı: output/senaryo.txt, output/baslik.txt, output/aciklama.txt
 
 Gerekli ortam değişkeni: GROQ_API_KEY
 """
@@ -36,7 +35,7 @@ def call_groq(messages, temperature, max_tokens, timeout=120, max_retries=5):
         )
         if resp.status_code == 429:
             wait = float(resp.headers.get("retry-after", 30))
-            wait = min(wait, 60)  # maksimum 60 saniye bekle, sonsuz döngüye girme
+            wait = min(wait, 60)
             print(f"Rate limit'e takıldık, {wait:.0f} saniye bekleniyor (deneme {attempt + 1}/{max_retries})...")
             time.sleep(wait)
             continue
@@ -74,6 +73,17 @@ def pick_theme():
 
 
 def write_script(theme):
+    anlatici = theme.get("anlatici", "kadin")
+    anlatici_tanim = (
+        "Anlatıcı: Otuzlu yaşlarında, sakin ama içten bir kadın. "
+        "Sesi titrek değil ama hafif kırılgan, sanki yaşananları "
+        "hâlâ sindirmeye çalışıyormuş gibi anlatıyor."
+        if anlatici == "kadin" else
+        "Anlatıcı: Ellili yaşlarında, ağır ve derin bir erkek. "
+        "Sesi sağlam ve kontrollü ama anlattıkça bir tedirginlik "
+        "sızıyor, sanki bazı şeyleri ilk kez dile getiriyor."
+    )
+
     system_prompt = (
         "Sen Türkçe bir korku/paranormal YouTube kanalı için senaryo "
         "yazarısın. Sanki bir forum/itiraf sitesinde birinci ağızdan "
@@ -99,16 +109,6 @@ def write_script(theme):
         "olmalı. Sadece senaryo metnini döndür, başlık veya başka "
         "açıklama ekleme."
     )
-       anlatici = theme.get("anlatici", "kadin")
-    anlatici_tanim = (
-        "Anlatıcı: Otuzlu yaşlarında, sakin ama içten bir kadın. "
-        "Sesi titrek değil ama hafif kırılgan, sanki yaşananları "
-        "hâlâ sindirmeye çalışıyormuş gibi anlatıyor."
-        if anlatici == "kadin" else
-        "Anlatıcı: Ellili yaşlarında, ağır ve derin bir erkek. "
-        "Sesi sağlam ve kontrollü ama anlattıkça bir tedirginlik "
-        "sızıyor, sanki bazı şeyleri ilk kez dile getiriyor."
-    )
 
     user_prompt = (
         f"Tema: {theme['tema']}\nMekan: {theme['mekan']}\n"
@@ -117,21 +117,18 @@ def write_script(theme):
         "özgün ve sürükleyici bir hikaye yaz."
     )
 
-
     script = call_groq(
         [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
         temperature=0.9,
         max_tokens=6000,
     )
 
-        # Maksimum 1600 kelime (≈10 dk) - daha uzunsa kes
     words = script.split()
     if len(words) > 1700:
         script = " ".join(words[:1700])
 
     attempts = 0
     while len(script.split()) < 1400 and attempts < 2:
-
         time.sleep(8)
         cont = call_groq(
             [
@@ -160,7 +157,6 @@ def write_script(theme):
 
 
 def proofread_script(script):
-    """Metni parçalara bölerek okutup imla hatalarını ve yabancı kelimeleri temizler."""
     system_msg = (
         "Sen bir Türkçe dil editörüsün. Sana verilen metni "
         "dikkatlice gözden geçir ve SADECE şu hataları "
@@ -191,6 +187,7 @@ def proofread_script(script):
             time.sleep(5)
 
     return "\n\n".join(corrected_chunks)
+
 
 def write_title(theme):
     return call_groq(
@@ -235,6 +232,8 @@ def write_description(theme, title):
         max_tokens=300,
         timeout=30,
     )
+
+
 def write_cta():
     return call_groq(
         [
@@ -263,10 +262,9 @@ def write_cta():
     )
 
 
-
 def apply_series(theme, title):
     seri_path = os.path.join(os.path.dirname(__file__), "seri_bilgisi.json")
-    (seri_path, "r", encoding="utf-8") as f:
+    with open(seri_path, "r", encoding="utf-8") as f:
         seriler = json.load(f)
 
     seri_key = theme.get("seri")
@@ -274,7 +272,7 @@ def apply_series(theme, title):
         return title, ""
 
     seriler[seri_key]["sayac"] += 1
-    (seri_path, "w", encoding="utf-8") as f:
+    with open(seri_path, "w", encoding="utf-8") as f:
         json.dump(seriler, f, ensure_ascii=False, indent=2)
 
     yeni_baslik = f"{seriler[seri_key]['ad']} #{seriler[seri_key]['sayac']}: {title}"
@@ -299,21 +297,21 @@ def main():
     time.sleep(5)
     description = write_description(theme, title)
 
-    ("output/senaryo.txt", "w", encoding="utf-8") as f:
+    with open("output/senaryo.txt", "w", encoding="utf-8") as f:
         f.write(script)
-    ("output/baslik.txt", "w", encoding="utf-8") as f:
+    with open("output/baslik.txt", "w", encoding="utf-8") as f:
         f.write(title)
-    ("output/aciklama.txt", "w", encoding="utf-8") as f:
+    with open("output/aciklama.txt", "w", encoding="utf-8") as f:
         f.write(description)
-    ("output/tema.json", "w", encoding="utf-8") as f:
+    with open("output/tema.json", "w", encoding="utf-8") as f:
         json.dump(theme, f, ensure_ascii=False)
-   with open("output/playlist_id.txt", "w", encoding="utf-8") as f:
+    with open("output/playlist_id.txt", "w", encoding="utf-8") as f:
         f.write(playlist_id)
-
     with open("output/anlatici.txt", "w", encoding="utf-8") as f:
         f.write(theme.get("anlatici", "kadin"))
 
     print(f"OK: {len(script)} karakterlik senaryo üretildi — '{title}'")
+
 
 if __name__ == "__main__":
     main()
