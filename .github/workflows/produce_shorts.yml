@@ -23,13 +23,13 @@ jobs:
 
       - name: Kısa senaryo yaz (Gemini)
         env:
-          AZURE_TTS_KEY: ${{ secrets.AZURE_TTS_KEY }}
-          AZURE_TTS_REGION: ${{ secrets.AZURE_TTS_REGION }}
+           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python scripts/generate_script_shorts.py
 
       - name: Seslendirme üret (Google WaveNet)
         env:
-          GOOGLE_TTS_API_KEY: ${{ secrets.GOOGLE_TTS_API_KEY }}
+          AZURE_TTS_KEY: ${{ secrets.AZURE_TTS_KEY }}
+          AZURE_TTS_REGION: ${{ secrets.AZURE_TTS_REGION }}
         run: python scripts/generate_tts.py output/senaryo.txt output/ses.mp3
       - name: Görsel üret (video için)
         run: python scripts/generate_thumbnail.py output/tema.json output/baslik.txt output/thumbnail.jpg
