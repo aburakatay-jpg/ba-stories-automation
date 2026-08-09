@@ -23,7 +23,8 @@ jobs:
 
       - name: Kısa senaryo yaz (Gemini)
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          AZURE_TTS_KEY: ${{ secrets.AZURE_TTS_KEY }}
+          AZURE_TTS_REGION: ${{ secrets.AZURE_TTS_REGION }}
         run: python scripts/generate_script_shorts.py
 
       - name: Seslendirme üret (Google WaveNet)
