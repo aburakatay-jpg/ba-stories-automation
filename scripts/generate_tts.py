@@ -1,5 +1,13 @@
 import sys
-from gtts import gTTS
+import asyncio
+import edge_tts
+
+async def generate_audio(text, output_file):
+    # Türkçe doğal ses (Sinan - erkek)
+    voice = "tr-TR-SinanNeural"
+    # İstersen "tr-TR-EmelNeural" (kadın) da kullanabilirsin
+    communicate = edge_tts.Communicate(text, voice)
+    await communicate.save(output_file)
 
 def main():
     if len(sys.argv) < 3:
@@ -12,8 +20,8 @@ def main():
     if not text:
         print("Metin boş, ses oluşturulamadı.")
         sys.exit(1)
-    tts = gTTS(text=text, lang='tr', slow=False)
-    tts.save(output_mp3)
+    # Asenkron çalıştır
+    asyncio.run(generate_audio(text, output_mp3))
     print(f"Ses oluşturuldu: {output_mp3}")
 
 if __name__ == "__main__":
