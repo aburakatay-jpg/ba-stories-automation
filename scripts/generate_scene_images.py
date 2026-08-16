@@ -1,30 +1,22 @@
-#!/usr/bin/env python3
 import sys
 import json
 import os
-import base64
 import requests
+from PIL import Image, ImageDraw, ImageFont
+import textwrap
 
-def generate_image(prompt, api_key):
-    url = "https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=" + api_key
-    payload = {
-        "contents": [
-            {"parts": [{"text": f"Üret: {prompt}"}]}
-        ],
-        "generationConfig": {
-            "responseModalities": ["IMAGE"]
-        }
-    }
-    resp = requests.post(url, json=payload, timeout=60)
+def search_pexels(query, api_key, per_page=5):
+    url = "https://api.pexels.com/v1/search"
+    headers = {"Authorization": api_key}
+    params = {"query": query, "per_page": per_page, "orientation": "portrait"}
+    resp = requests.get(url, headers=headers, params=params)
     if not resp.ok:
-        raise Exception(f"Görsel üretilemedi: {resp.text}")
+        raise Exception(f"Pexels hatası: {resp.text}")
     data = resp.json()
-    # İlk görseli al
-    image_data = data["candidates"][0]["content"]["parts"][0]["inlineData"]["data"]
-    return base64.b64decode(image_data)
+    return [photo["src"]["original"] for photo in data.get("photos", [])]
 
 def main():
-    if len(sys.argv) != 5:
+    if len(sys.argv) < 5:
         print("Kullanım: generate_scene_images.py <tema_json> <baslik_txt> <senaryo_txt> <cikti_klasoru>")
         sys.exit(1)
     tema_json = sys.argv[1]
@@ -33,34 +25,60 @@ def main():
     output_dir = sys.argv[4]
     os.makedirs(output_dir, exist_ok=True)
 
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise ValueError("GEMINI_API_KEY ortam değişkeni ayarlanmamış")
+    pexels_api_key = os.environ.get("PEXELS_API_KEY")
+    if not pexels_api_key:
+        print("PEXELS_API_KEY ortam değişkeni tanımlı değil!")
+        sys.exit(1)
 
     with open(tema_json, "r", encoding="utf-8") as f:
         tema = json.load(f)
+    with open(senaryo_txt, "r", encoding="utf-8") as f:
+        script = f.read()
     with open(baslik_txt, "r", encoding="utf-8") as f:
         baslik = f.read().strip()
-    with open(senaryo_txt, "r", encoding="utf-8") as f:
-        script = f.read().strip()
 
-    # Senaryoyu cümlelere böl (nokta, ünlem, soru işareti)
-    import re
-    sentences = re.split(r'(?<=[.!?])\s+', script)
-    # Boşları temizle ve en fazla 5 sahne al
-    scenes = [s.strip() for s in sentences if len(s.strip()) > 10][:5]
-    if not scenes:
-        # Eğer hiç cümle yoksa, baslığı kullan
-        scenes = [baslik]
+    # Senaryoyu sahnelere böl (basitçe nokta)
+    sentences = [s.strip() for s in script.split(".") if len(s.strip()) > 10]
+    scenes = sentences[:5]  # en fazla 5 sahne
+
+    # Tema anahtar kelimeleri
+    keywords = [tema["tema"], tema["mekan"], "korku", "gece", "gerilim"]
 
     for i, scene in enumerate(scenes):
-        prompt = f"{tema['tema']}, {tema['mekan']}, korku atmosferi, gece, gerilim, fotoğraf gerçekçi: {scene}"
-        print(f"Sahne {i+1}/{len(scenes)} görseli üretiliyor...")
-        image_bytes = generate_image(prompt, api_key)
-        out_path = os.path.join(output_dir, f"scene_{i+1}.jpg")
-        with open(out_path, "wb") as f:
-            f.write(image_bytes)
-        print(f"Kaydedildi: {out_path}")
+        query = " ".join(keywords[:3]) + " " + " ".join(scene.split()[:5])
+        print(f"Sahne {i+1} için görsel aranıyor: {query}")
+        images = search_pexels(query, pexels_api_key, per_page=3)
+        if not images:
+            print(f"Görsel bulunamadı, atlanıyor: {i+1}")
+            continue
+        img_url = images[0]
+        # Görseli indir
+        resp = requests.get(img_url)
+        img_path = os.path.join(output_dir, f"scene_{i+1}.jpg")
+        with open(img_path, "wb") as f:
+            f.write(resp.content)
+
+        # Görsel üzerine metin ekle (isteğe bağlı)
+        img = Image.open(img_path).convert("RGB")
+        img = img.resize((1080, 1920), Image.Resampling.LANCZOS)
+        draw = ImageDraw.Draw(img)
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 60)
+        except:
+            font = ImageFont.load_default()
+        # Metin kutusu (yarı saydam siyah)
+        wrapped = textwrap.fill(scene, width=25)
+        bbox = draw.textbbox((0,0), wrapped, font=font)
+        w = bbox[2] - bbox[0]
+        h = bbox[3] - bbox[1]
+        box_x1 = (1080 - w)//2 - 40
+        box_y1 = (1920 - h)//2 - 40
+        box_x2 = (1080 + w)//2 + 40
+        box_y2 = (1920 + h)//2 + 40
+        draw.rectangle([box_x1, box_y1, box_x2, box_y2], fill=(0,0,0,180))
+        draw.text(((1080-w)//2, (1920-h)//2), wrapped, fill='white', font=font)
+        img.save(img_path)
+        print(f"Sahne {i+1} kaydedildi: {img_path}")
 
 if __name__ == "__main__":
     main()
