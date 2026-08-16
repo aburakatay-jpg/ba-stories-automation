@@ -18,19 +18,25 @@ def build_zoom_filter(input_idx, total_frames, target_zoom=1.3):
     return f"[{input_idx}:v]zoompan=z='min(zoom+{increment:.8f},{target_zoom})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={total_frames}:s=1080x1920:fps=30,format=yuv420p[v{input_idx}]"
 
 def main():
-    if len(sys.argv) != 5:
-        print("Kullanım: assemble_video_shorts.py <gorsel_prefix> <ses.mp3> <cikti.mp4> <music_dir>")
+   if len(sys.argv) not in (5, 6):
+        print("Kullanım: assemble_video_shorts.py <gorsel_prefix> <ses.mp3> <cikti.mp4> <music_dir> [music_prefix]")
         sys.exit(1)
     prefix = sys.argv[1]  # "output/thumbnail"
     audio_path = sys.argv[2]
     output_path = sys.argv[3]
     music_dir = sys.argv[4]
 
+    music_prefix = sys.argv[5] if len(sys.argv) == 6 else ""
+
     # Tüm görselleri bul
     images = sorted(glob.glob(f"{prefix}_*.jpg"))
     if not images:
-        print("Hiç görsel bulunamadı!")
-        sys.exit(1)
+        # Görsel bulamazsa sadece thumbnail'i kullanmasını sağlayan ufak bir yama
+        if os.path.exists(prefix):
+            images = [prefix]
+        else:
+            print("Hiç görsel bulunamadı!")
+            sys.exit(1)
 
     audio_duration = get_duration(audio_path)
     fps = 30
@@ -51,13 +57,12 @@ def main():
     cmd += ["-i", audio_path]
 
     # Müzik inputu (varsa)
-    music_path = None
+   music_path = None
     if os.path.exists(music_dir):
-        music_files = [f for f in os.listdir(music_dir) if f.endswith(('.mp3','.wav'))]
+        music_files = [f for f in os.listdir(music_dir) if f.startswith(music_prefix) and f.endswith(('.mp3','.wav'))]
         if music_files:
-            music_path = os.path.join(music_dir, music_files[0])
+            music_path = os.path.join(music_dir, random.choice(music_files))
             cmd += ["-stream_loop", "-1", "-i", music_path]
-
     # Filter complex oluştur
     filter_parts = []
     video_maps = []
