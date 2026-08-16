@@ -34,8 +34,9 @@ jobs:
         run: python scripts/generate_tts.py output/senaryo.txt output/ses.mp3
 
       - name: Arkaplan görsellerini hazırla (çoklu sahne)
+        env:
+         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python scripts/generate_scene_images.py output/tema.json output/baslik.txt output/senaryo.txt output/scenes/
-
       - name: Short'u kurgula (çoklu sahne + Ken Burns + geçişler)
         run: python scripts/assemble_short_scenes.py output/scenes/ output/ses.mp3 output/video.mp4 music shorts_
 
