@@ -6,7 +6,6 @@ import requests
 import base64
 
 def generate_image_ai(prompt, api_key):
-    # Görselin temiz, yazısız, dikey ve sinematik korku atmosferinde olması için komutu güçlendiriyoruz
     enhanced_prompt = f"{prompt}. Dark spooky atmosphere, cinematic horror movie lighting, highly detailed, photorealistic, no text, empty background, 9:16 aspect ratio."
     print(f"Yapay zeka komutu: {enhanced_prompt}")
 
@@ -29,15 +28,17 @@ def generate_image_ai(prompt, api_key):
                 print("✅ Gemini Imagen 3 ile görsel başarıyla üretildi.")
                 return base64.b64decode(b64)
             else:
-                print(f"⚠️ Gemini API görseli reddetti (Güvenlik filtresi veya Kota). Yedek AI'a geçiliyor... Hata: {resp.text}")
+                print(f"⚠️ Gemini API görseli reddetti. Hata: {resp.text}")
         except Exception as e:
-             print(f"⚠️ Gemini API hatası: {e}. Yedek AI'a geçiliyor...")
+             print(f"⚠️ Gemini API hatası: {e}.")
 
     # --- YÖNTEM 2: ÜCRETSİZ YEDEK YAPAY ZEKA (Pollinations AI) ---
     print("🔄 Yedek AI görsel aracına başvuruluyor...")
-    # Komutu URL formatına çevir (Boşlukları %20 yapar vb.)
     safe_prompt = requests.utils.quote(enhanced_prompt)
-    fallback_url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width=1080&height=1920&nologo=true"
+    
+    # SEED EKLENDİ: Her API çağrısında farklı görsel üretilmesi garanti altına alındı
+    seed_value = random.randint(1, 9999999) 
+    fallback_url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width=1080&height=1920&nologo=true&seed={seed_value}"
     
     resp = requests.get(fallback_url)
     if resp.ok:
@@ -60,14 +61,12 @@ def main():
 
     gemini_api_key = os.environ.get("GEMINI_API_KEY", "")
 
-    # Temayı okuyup görsellerin konusunu belirliyoruz
     with open(tema_json, "r", encoding="utf-8") as f:
         tema = json.load(f)
     
     tema_konusu = tema.get("tema", "korku")
     tema_mekani = tema.get("mekan", "karanlık mekan")
 
-    # 3 farklı sahne için farklı kamera açıları ve efektler atayarak çeşitlilik sağlıyoruz
     kamera_acilari = [
         "Wide angle shot, mysterious shadow lurking in the distance",
         "Close up macro shot, eerie details, feeling of being watched",
@@ -75,17 +74,14 @@ def main():
     ]
 
     for i in range(3):
-        # O anki sahnenin promptunu oluştur (Tema + Mekan + Kamera Açısı)
         sahne_promptu = f"Concept: {tema_konusu} at {tema_mekani}. {kamera_acilari[i]}"
         
-        # Resmi AI'dan indir
         image_bytes = generate_image_ai(sahne_promptu, gemini_api_key)
         
         if image_bytes:
             img_path = os.path.join(output_dir, f"scene_{i+1}.jpg")
             with open(img_path, "wb") as f:
                 f.write(image_bytes)
-            # Resmi kırpmaya gerek yok çünkü AI doğrudan 1080x1920 (9:16) formatında veriyor.
             print(f"Sahne {i+1} klasöre kaydedildi: {img_path}")
         else:
             print(f"Sahne {i+1} atlandı!")
