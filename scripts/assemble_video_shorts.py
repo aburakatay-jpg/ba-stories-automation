@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import glob
+import random
 
 def get_duration(path):
     result = subprocess.run(
