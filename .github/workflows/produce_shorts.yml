@@ -21,14 +21,12 @@ jobs:
           sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Python bağımlılıklarını kur
-        run: |
+       run: |
           pip install --upgrade pip
-          pip install pillow gTTS google-api-python-client google-auth-oauthlib requests
-
-      - name: Kısa senaryo yaz (Gemini)
-        env:
+          pip install pillow gTTS edge-tts google-api-python-client google-auth-oauthlib requests      - name: Kısa senaryo yaz (Gemini)
+          env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: python scripts/generate_script_shorts.py
+          run: python scripts/generate_script_shorts.py
 
       - name: Seslendirme üret (gTTS)
         run: python scripts/generate_tts.py output/senaryo.txt output/ses.mp3
