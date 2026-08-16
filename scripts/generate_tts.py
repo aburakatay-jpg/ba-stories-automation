@@ -1,28 +1,34 @@
 import sys
 import asyncio
+import json
 import edge_tts
 
-async def generate_audio(text, output_file):
-    # Türkçe doğal ses (Sinan - erkek)
-    voice = "tr-TR-SinanNeural"
-    # İstersen "tr-TR-EmelNeural" (kadın) da kullanabilirsin
+async def generate_audio(text, output_file, voice="tr-TR-SinanNeural"):
     communicate = edge_tts.Communicate(text, voice)
     await communicate.save(output_file)
 
 def main():
-    if len(sys.argv) < 3:
-        print("Kullanım: python generate_tts.py <metin_dosyası> <çıktı_mp3>")
+    if len(sys.argv) < 4:
+        print("Kullanım: generate_tts.py <senaryo_txt> <tema_json> <cikti_mp3>")
         sys.exit(1)
-    input_txt = sys.argv[1]
-    output_mp3 = sys.argv[2]
-    with open(input_txt, 'r', encoding='utf-8') as f:
+    script_file = sys.argv[1]
+    theme_file = sys.argv[2]
+    output_file = sys.argv[3]
+
+    with open(script_file, 'r', encoding='utf-8') as f:
         text = f.read().strip()
-    if not text:
-        print("Metin boş, ses oluşturulamadı.")
-        sys.exit(1)
-    # Asenkron çalıştır
-    asyncio.run(generate_audio(text, output_mp3))
-    print(f"Ses oluşturuldu: {output_mp3}")
+    with open(theme_file, 'r', encoding='utf-8') as f:
+        theme = json.load(f)
+        anlatici = theme.get('anlatici', 'erkek')
+
+    # Edge TTS ses seçimi
+    if anlatici == 'kadin':
+        voice = "tr-TR-EmelNeural"
+    else:
+        voice = "tr-TR-SinanNeural"
+
+    asyncio.run(generate_audio(text, output_file, voice))
+    print(f"Ses oluşturuldu: {output_file} ({anlatici})")
 
 if __name__ == "__main__":
     main()
