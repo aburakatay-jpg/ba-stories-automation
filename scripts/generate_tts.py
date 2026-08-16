@@ -1,6 +1,12 @@
+#!/usr/bin/env python3
+"""
+Edge TTS ile ses oluşturur, anlatici cinsiyetine göre ses seçer.
+Kullanım: python generate_tts.py <metin_dosyası> <çıktı_mp3>
+"""
 import sys
-import asyncio
+import os
 import json
+import asyncio
 import edge_tts
 
 async def generate_audio(text, output_file, voice="tr-TR-SinanNeural"):
@@ -8,27 +14,34 @@ async def generate_audio(text, output_file, voice="tr-TR-SinanNeural"):
     await communicate.save(output_file)
 
 def main():
-    if len(sys.argv) < 4:
-        print("Kullanım: generate_tts.py <senaryo_txt> <tema_json> <cikti_mp3>")
+    if len(sys.argv) < 3:
+        print("Kullanım: generate_tts.py <metin_dosyası> <çıktı_mp3>")
         sys.exit(1)
-    script_file = sys.argv[1]
-    theme_file = sys.argv[2]
-    output_file = sys.argv[3]
-
-    with open(script_file, 'r', encoding='utf-8') as f:
+    input_txt = sys.argv[1]
+    output_mp3 = sys.argv[2]
+    
+    with open(input_txt, 'r', encoding='utf-8') as f:
         text = f.read().strip()
-    with open(theme_file, 'r', encoding='utf-8') as f:
-        theme = json.load(f)
-        anlatici = theme.get('anlatici', 'erkek')
-
-    # Edge TTS ses seçimi
-    if anlatici == 'kadin':
-        voice = "tr-TR-EmelNeural"
-    else:
-        voice = "tr-TR-SinanNeural"
-
-    asyncio.run(generate_audio(text, output_file, voice))
-    print(f"Ses oluşturuldu: {output_file} ({anlatici})")
+    if not text:
+        print("Metin boş!")
+        sys.exit(1)
+    
+    # Anlatici bilgisini tema.json'dan oku
+    voice = "tr-TR-SinanNeural"  # varsayılan erkek
+    if os.path.exists("output/tema.json"):
+        with open("output/tema.json", "r", encoding="utf-8") as f:
+            theme = json.load(f)
+        anlatici = theme.get("anlatici", "").lower()
+        if anlatici == "kadin":
+            voice = "tr-TR-EmelNeural"
+        elif anlatici == "erkek":
+            voice = "tr-TR-SinanNeural"
+        else:
+            voice = "tr-TR-SinanNeural"  # fallback
+    
+    print(f"🗣️ Ses: {voice}")
+    asyncio.run(generate_audio(text, output_mp3, voice))
+    print(f"✅ Ses oluşturuldu: {output_mp3}")
 
 if __name__ == "__main__":
     main()
