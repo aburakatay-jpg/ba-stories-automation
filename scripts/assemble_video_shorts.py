@@ -1,20 +1,9 @@
 #!/usr/bin/env python3
-"""
-Tek bir görsele (üretilen thumbnail) Ken Burns efekti uygulayarak dikey
-short videosu üretir, arka plan müziğiyle (ducking'li) birleştirir.
-
-Kamera hareketi videonun TAM SÜRESİNE göre hesaplanır - erken durup
-donmaz, son kareye kadar sürer.
-
-Kullanım:
-  python3 assemble_video_shorts.py thumbnail.jpg ses.mp3 cikti.mp4 music shorts_
-"""
 import json
 import os
-import random
 import subprocess
 import sys
-
+import glob
 
 def get_duration(path):
     result = subprocess.run(
@@ -23,81 +12,91 @@ def get_duration(path):
     )
     return float(json.loads(result.stdout)["format"]["duration"])
 
-
-def pick_music(music_dir, prefix):
-    files = [f for f in os.listdir(music_dir) if f.startswith(prefix) and f.lower().endswith((".mp3", ".wav", ".m4a"))]
-    if not files:
-        return None
-    return os.path.join(music_dir, random.choice(files))
-
-
-def build_zoom_expr(total_frames, target_zoom=1.3):
-    """Zoom, tam olarak son kareye kadar süren bir hızda ilerler - erken durup donmaz."""
+def build_zoom_filter(input_idx, total_frames, target_zoom=1.3):
     increment = (target_zoom - 1.0) / total_frames
-    variants = [
-        f"z='min(zoom+{increment:.8f},{target_zoom})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'",  # zoom-in, merkez
-        f"z='if(eq(on,0),{target_zoom},max(zoom-{increment:.8f},1.0))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'",  # zoom-out
-        f"z='min(zoom+{increment:.8f},{target_zoom})':x='(iw-iw/zoom)*on/{total_frames}':y='ih/2-(ih/zoom/2)'",  # zoom-in + sağa kayma
-        f"z='min(zoom+{increment:.8f},{target_zoom})':x='iw/2-(iw/zoom/2)':y='(ih-ih/zoom)*on/{total_frames}'",  # zoom-in + aşağı kayma
-    ]
-    return random.choice(variants)
-
+    return f"[{input_idx}:v]zoompan=z='min(zoom+{increment:.8f},{target_zoom})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={total_frames}:s=1080x1920:fps=30,format=yuv420p[v{input_idx}]"
 
 def main():
-    if len(sys.argv) != 6:
-        print(
-            "Kullanım: assemble_video_shorts.py <thumbnail.jpg> <ses.mp3> <cikti.mp4> <music_klasoru> <music_onek>",
-            file=sys.stderr,
-        )
+    if len(sys.argv) != 5:
+        print("Kullanım: assemble_video_shorts.py <gorsel_prefix> <ses.mp3> <cikti.mp4> <music_dir>")
+        sys.exit(1)
+    prefix = sys.argv[1]  # "output/thumbnail"
+    audio_path = sys.argv[2]
+    output_path = sys.argv[3]
+    music_dir = sys.argv[4]
+
+    # Tüm görselleri bul
+    images = sorted(glob.glob(f"{prefix}_*.jpg"))
+    if not images:
+        print("Hiç görsel bulunamadı!")
         sys.exit(1)
 
-    image_path, audio_path, output_path, music_dir, music_prefix = sys.argv[1:6]
-
-    duration = get_duration(audio_path)
+    audio_duration = get_duration(audio_path)
     fps = 30
-    total_frames = int(duration * fps)
-    zoom_expr = build_zoom_expr(total_frames)
-    music_path = pick_music(music_dir, music_prefix)
+    total_frames = int(audio_duration * fps)
+    # Her görsele eşit süre (kare sayısı)
+    frames_per_image = total_frames // len(images)
+    if frames_per_image < 1:
+        frames_per_image = 1
 
-    inputs = ["-loop", "1", "-i", image_path, "-i", audio_path]
-    narration_idx = 1
+    # FFmpeg komutunu oluştur
+    cmd = ["ffmpeg", "-y"]
 
-    vf = (
-        f"scale=1080:1920:force_original_aspect_ratio=increase,"
-        f"crop=1080:1920,"
-        f"zoompan={zoom_expr}:d={total_frames}:s=1080x1920:fps={fps}"
-    )
+    # Görselleri input olarak ekle
+    for img in images:
+        cmd += ["-loop", "1", "-i", img]
 
-    filter_parts = [f"[0:v]{vf}[outv]"]
+    # Ses inputu
+    cmd += ["-i", audio_path]
 
+    # Müzik inputu (varsa)
+    music_path = None
+    if os.path.exists(music_dir):
+        music_files = [f for f in os.listdir(music_dir) if f.endswith(('.mp3','.wav'))]
+        if music_files:
+            music_path = os.path.join(music_dir, music_files[0])
+            cmd += ["-stream_loop", "-1", "-i", music_path]
+
+    # Filter complex oluştur
+    filter_parts = []
+    video_maps = []
+    for i, img in enumerate(images):
+        start_frame = i * frames_per_image
+        # Ken Burns efekti, sadece o görselin süresi boyunca uygula
+        # Özel bir zoompan ile her görsel için ayrı ayrı
+        vf = f"zoompan=z='min(zoom+0.0001,1.3)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames_per_image}:s=1080x1920:fps=30"
+        # Her görseli input üzerinden işle
+        filter_parts.append(f"[{i}:v]{vf},setpts=PTS-STARTPTS+{start_frame/fps:.2f}/TB[v{i}]")
+        video_maps.append(f"[v{i}]")
+
+    # Concat ile birleştir (n=len(images))
+    concat_filter = f"concat=n={len(images)}:v=1:a=0[outv]"
+    filter_parts.append(f"{''.join(video_maps)}{concat_filter}")
+
+    # Ses ve müzik işleme (ducking)
+    audio_idx = len(images)
     if music_path:
-        music_idx = 2
-        inputs += ["-stream_loop", "-1", "-i", music_path]
+        music_idx = len(images) + 1
         filter_parts.append(f"[{music_idx}:a]volume=0.15[music_vol]")
-        filter_parts.append(
-            f"[music_vol][{narration_idx}:a]sidechaincompress="
-            f"threshold=0.05:ratio=8:attack=20:release=400:makeup=1[music_duck]"
-        )
-        filter_parts.append(f"[{narration_idx}:a][music_duck]amix=inputs=2:duration=first:normalize=0[aout]")
+        filter_parts.append(f"[music_vol][{audio_idx}:a]sidechaincompress=threshold=0.05:ratio=8:attack=20:release=400:makeup=1[music_duck]")
+        filter_parts.append(f"[{audio_idx}:a][music_duck]amix=inputs=2:duration=first:normalize=0[aout]")
         audio_map = "[aout]"
     else:
-        audio_map = f"{narration_idx}:a:0"
+        audio_map = f"{audio_idx}:a:0"
 
     filter_complex = ";".join(filter_parts)
 
-    cmd = [
-        "ffmpeg", "-y", *inputs,
-        "-filter_complex", filter_complex,
-        "-map", "[outv]", "-map", audio_map,
-        "-c:v", "libx264", "-preset", "medium", "-crf", "23",
-        "-c:a", "aac", "-b:a", "128k",
-        "-t", str(duration),
-        output_path,
-    ]
+    cmd += ["-filter_complex", filter_complex]
+    cmd += ["-map", "[outv]", "-map", audio_map]
+    cmd += ["-c:v", "libx264", "-preset", "medium", "-crf", "23"]
+    cmd += ["-c:a", "aac", "-b:a", "128k"]
+    cmd += ["-t", str(audio_duration)]
+    cmd += [output_path]
 
+    print("Çalıştırılacak komut:")
+    print(" ".join(cmd))
     subprocess.run(cmd, check=True)
-    print(f"OK: {output_path} (müzik: {'var' if music_path else 'yok'})")
-
+    print(f"Video oluşturuldu: {output_path}")
 
 if __name__ == "__main__":
     main()
