@@ -1,5 +1,9 @@
 name: BA Stories - Shorts Üretim
 
+-name: Install dependencies
+  run: |
+    pip install pillow gTTS google-api-python-client google-auth-oauthlib
+
 on:
   schedule:
     # Pazartesi, Çarşamba, Perşembe, Cumartesi, Pazar - 09:00 TR saati (UTC 06:00)
