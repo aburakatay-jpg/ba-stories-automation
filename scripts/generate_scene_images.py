@@ -6,7 +6,7 @@ import base64
 import requests
 
 def generate_image(prompt, api_key):
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=" + api_key
+    url = "https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=" + api_key
     payload = {
         "contents": [
             {"parts": [{"text": f"Üret: {prompt}"}]}
