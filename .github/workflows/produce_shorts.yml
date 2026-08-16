@@ -32,13 +32,11 @@ jobs:
       - name: Seslendirme üret (Edge TTS)
         run: python scripts/generate_tts.py output/senaryo.txt output/ses.mp3
 
-      - name: Arkaplan görsellerini hazırla (çoklu sahne)
-        env:
-          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
-        run: python scripts/generate_scene_images.py output/tema.json output/baslik.txt output/senaryo.txt output/scenes/
+      - name: Thumbnail oluştur (arkaplan resmi + metin)
+        run: python scripts/generate_thumbnail.py output/tema.json output/baslik.txt output/thumbnail.jpg
 
-      - name: Short'u kurgula (çoklu sahne + Ken Burns + geçişler)
-        run: python scripts/assemble_short_scenes.py output/scenes/ output/ses.mp3 output/video.mp4 music shorts_
+      - name: Short'u kurgula (Ken Burns efekti)
+        run: python scripts/assemble_video_shorts.py output/thumbnail.jpg output/ses.mp3 output/video.mp4 music shorts_
 
       - name: Videoyu artifact olarak sakla
         uses: actions/upload-artifact@v4
@@ -68,7 +66,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: YouTube yükleme bağımlılıkları
+      - name: YouTube bağımlılıkları
         run: pip install google-api-python-client google-auth google-auth-oauthlib
       - name: YouTube'a yükle
         env:
