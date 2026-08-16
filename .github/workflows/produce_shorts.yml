@@ -1,4 +1,4 @@
-```yaml
+yaml
 name: BA Stories - Shorts Üretim
 
 on:
@@ -136,4 +136,4 @@ jobs:
             "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             -d chat_id="${TELEGRAM_CHAT_ID}" \
             -d text="⚠️ BA Stories Shorts üretim hatası%0A%0AWorkflow: ${{ github.workflow }}%0ARun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}%0A%0AHatayı incelemek için linke tıkla."
-```
+
