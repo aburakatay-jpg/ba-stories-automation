@@ -32,9 +32,9 @@ jobs:
       - name: Seslendirme üret (Edge TTS)
         run: python scripts/generate_tts.py output/senaryo.txt output/ses.mp3
 
-      - name: Sahne Görsellerini Üret (Pexels)
+      - name: Sahne Görsellerini Üret (Yapay Zeka)
         env:
-          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python scripts/generate_scene_images.py output/tema.json output/baslik.txt output/senaryo.txt output/scenes
 
       - name: Thumbnail oluştur (arkaplan resmi + metin)
