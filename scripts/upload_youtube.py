@@ -1,18 +1,11 @@
 #!/usr/bin/env python3
-"""
-Refresh token kullanarak YouTube'a video yükler, thumbnail set eder,
-ve tema bir seriye aitse videoyu ilgili playlist'e ekler.
-
-Gerekli ortam değişkenleri:
-  YT_CLIENT_ID, YT_CLIENT_SECRET, YT_REFRESH_TOKEN
-"""
 import os
 import sys
+import re
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-
 
 def get_credentials():
     return Credentials(
@@ -24,13 +17,9 @@ def get_credentials():
         scopes=["https://www.googleapis.com/auth/youtube.upload"],
     )
 
-
 def main():
     if len(sys.argv) not in (5, 6):
-        print(
-            "Kullanım: upload_youtube.py <video.mp4> <baslik.txt> <aciklama.txt> [thumbnail.jpg] <playlist_id.txt>",
-            file=sys.stderr,
-        )
+        print("Kullanım: upload_youtube.py <video.mp4> <baslik.txt> <aciklama.txt> [thumbnail.jpg] <playlist_id.txt>")
         sys.exit(1)
 
     if len(sys.argv) == 6:
@@ -46,6 +35,13 @@ def main():
     with open(playlist_path, "r", encoding="utf-8") as f:
         playlist_id = f.read().strip()
 
+    # --- DİNAMİK ETİKET (TAG) SİSTEMİ ---
+    # Açıklama metnindeki #hashtag kelimelerini bulur ve başındaki # işaretini atarak listeler.
+    hashtags = re.findall(r'#(\w+)', description)
+    base_tags = ["korku", "paranormal", "gerçek hikaye", "shorts"]
+    # Temel etiketler ile yeni bulunanları birleştir, tekrarları sil, en fazla 15 tanesini al
+    all_tags = list(set(base_tags + hashtags))[:15]
+
     creds = get_credentials()
     youtube = build("youtube", "v3", credentials=creds)
 
@@ -53,7 +49,7 @@ def main():
         "snippet": {
             "title": title[:100],
             "description": description,
-            "tags": ["korku", "paranormal", "gerçek hikaye", "şehir efsanesi"],
+            "tags": all_tags,
             "categoryId": "24",
         },
         "status": {"privacyStatus": "public"},
@@ -76,8 +72,6 @@ def main():
             media_body=MediaFileUpload(thumbnail_path, mimetype="image/jpeg"),
         ).execute()
         print("Thumbnail set edildi.")
-    else:
-        print("Thumbnail yok veya atlanıyor.")
 
     if playlist_id:
         youtube.playlistItems().insert(
@@ -91,8 +85,7 @@ def main():
         ).execute()
         print(f"Playlist'e eklendi: {playlist_id}")
 
-    print(f"OK: https://youtube.com/watch?v={video_id} (thumbnail set edildi)")
-
+    print(f"OK: https://youtube.com/watch?v={video_id}")
 
 if __name__ == "__main__":
     main()
