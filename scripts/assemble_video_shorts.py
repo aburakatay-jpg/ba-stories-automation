@@ -36,12 +36,19 @@ def main():
 
     audio_duration = get_duration(audio_path)
     fps = 30
-    total_frames = int(audio_duration * fps)
+    N = len(images)
+    fade_dur = 1.0 # 1 saniyelik yumuşak geçiş (crossfade) süresi
     
-    frames_per_image = total_frames // len(images)
-    if frames_per_image < 1:
-        frames_per_image = 1
-
+    # Geçiş sürelerini hesaba katarak her görselin ekranda kalma süresini hesapla
+    # Çünkü görseller birbiri üzerine bindiğinde toplam video süresi kısalır
+    if N > 1:
+        clip_duration = (audio_duration + (N - 1) * fade_dur) / N
+    else:
+        clip_duration = audio_duration
+        
+    frames_per_image = int(clip_duration * fps)
+    actual_clip_duration = frames_per_image / fps # Kusursuz offset hesaplama için
+    
     cmd = ["ffmpeg", "-y"]
 
     for img in images:
@@ -58,15 +65,25 @@ def main():
 
     filter_parts = []
     video_maps = []
+    
     for i, img in enumerate(images):
         # Ken Burns efekti
         vf = f"zoompan=z='min(zoom+0.0002,1.3)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames_per_image}:s=1080x1920:fps={fps}"
-        # HATALI KISIM DÜZELTİLDİ: Sadece PTS-STARTPTS olmalı, zaman kaydırmasını kaldırdık!
-        filter_parts.append(f"[{i}:v]{vf},setpts=PTS-STARTPTS[v{i}]")
-        video_maps.append(f"[v{i}]")
-
-    concat_filter = f"concat=n={len(images)}:v=1:a=0[outv]"
-    filter_parts.append(f"{''.join(video_maps)}{concat_filter}")
+        # xfade (geçiş) filtresinin çalışması için formatın yuv420p olması zorunludur
+        filter_parts.append(f"[{i}:v]{vf},setpts=PTS-STARTPTS,format=yuv420p[v{i}]")
+        
+    # --- YENİ EKLENEN YUMUŞAK GEÇİŞ (XFADE) MANTIĞI ---
+    if N == 1:
+        filter_parts.append(f"[v0]copy[outv]")
+    else:
+        current_offset = actual_clip_duration - fade_dur
+        last_out = "v0"
+        for i in range(1, N):
+            next_out = f"f{i}" if i < N - 1 else "outv"
+            # xfade ile bir önceki görseli bir sonraki görsele yumuşakça bağla
+            filter_parts.append(f"[{last_out}][v{i}]xfade=transition=fade:duration={fade_dur}:offset={current_offset:.3f}[{next_out}]")
+            last_out = next_out
+            current_offset += (actual_clip_duration - fade_dur)
 
     audio_idx = len(images)
     if music_path:
@@ -87,6 +104,8 @@ def main():
     cmd += ["-t", str(audio_duration)]
     cmd += [output_path]
 
+    print("Çalıştırılacak komut (xfade ile):")
+    print(" ".join(cmd))
     subprocess.run(cmd, check=True)
     print(f"Video oluşturuldu: {output_path}")
 
