@@ -54,7 +54,7 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add scripts/tema_gecmisi_shorts.json
+          git add scripts/tema_gecmisi_shorts.json scripts/seri_bilgisi_shorts.json
           git diff --staged --quiet || git commit -m "tema gecmisi guncellendi [skip ci]"
           git push
 
