@@ -1,0 +1,17 @@
+{
+  "gece_taksicisi": {
+    "ad": "Gece Taksicisi",
+    "mekan": "Taksi İçi / Karanlık Sokaklar",
+    "sayac": 0
+  },
+  "morg_bekcisi": {
+    "ad": "Morg Nöbeti",
+    "mekan": "Eski Hastane Morgu",
+    "sayac": 0
+  },
+  "kurye": {
+    "ad": "Girilmez Sokaklar",
+    "mekan": "Issız Apartman Koridorları",
+    "sayac": 0
+  }
+}
