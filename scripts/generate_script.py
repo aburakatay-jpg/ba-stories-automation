@@ -6,8 +6,9 @@ import time
 import requests
 
 os.makedirs("output", exist_ok=True)
+# KESİN VE HATASIZ URL - Parantezler temizlendi, en stabil 'pro' modele geçildi.
+API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent"
 
-API_URL = "[https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent](https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent)"
 def clean_ai_text(text):
     lines = text.split('\n')
     cleaned = []
@@ -34,10 +35,11 @@ def call_gemini(prompt, temperature=0.9, max_tokens=4000, max_retries=5):
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens},
             },
-            timeout=120, # Uzun metin üretimi API tarafında zaman alabilir
+            timeout=120, 
         )
-        if resp.status_code == 429:
-            time.sleep(30)
+        if resp.status_code in [429, 503]:
+            print(f"⏳ API yoğun (Hata {resp.status_code}), 60 saniye bekleniyor...")
+            time.sleep(60)
             continue
         if not resp.ok:
             raise RuntimeError(f"Gemini API hatası: {resp.status_code} - {resp.text}")
@@ -49,7 +51,6 @@ def call_gemini(prompt, temperature=0.9, max_tokens=4000, max_retries=5):
 def get_series_info():
     seri_path = os.path.join(os.path.dirname(__file__), "seri_bilgisi.json")
     if not os.path.exists(seri_path):
-        # Uzun formata (Yatay Video) uygun mikro seriler
         default_series = {
             "karanlik_arsivler": {"ad": "Karanlık Arşivler", "mekan": "Terk Edilmiş Devlet Arşivi", "sayac": 0},
             "deniz_feneri": {"ad": "Yalnız Fener", "mekan": "Okyanus Ortasında Bir Deniz Feneri", "sayac": 0},
@@ -65,7 +66,6 @@ def get_series_info():
 def generate_dynamic_context():
     series_data, seri_path = get_series_info()
     
-    # %30 ihtimalle bir seriye devam et
     if random.random() < 0.30:
         secilen_seri_key = random.choice(list(series_data.keys()))
         series_data[secilen_seri_key]["sayac"] += 1
@@ -88,7 +88,6 @@ def generate_dynamic_context():
             "prompt_context": f"Bu hikaye '{ad}' isimli korku serisinin {bolum}. bölümüdür. Ana karakterimiz bu serinin odak kişisidir. Yaklaşık 10-12 dakikalık bir okuma süresi için detaylı, sürükleyici ve yavaş yavaş gerilimi tırmandıran bir olay örgüsü yaz."
         }
     else:
-        # %70 ihtimalle rastgele uzun metraj korku kurgusu
         mekanlar = ["ıssız bir kargo gemisi", "karlar altında kalmış bir dağ oteli", "eski bir akıl hastanesi kalıntısı", "gece yarısı boş bir otoyol dinlenme tesisi", "derin bir orman kulübesi", "terk edilmiş bir lunapark"]
         nesneler = ["isimsiz bir kaset", "gece yarısı çalan ankesörlü telefon", "duvardaki tuhaf çizimler", "eski bir telsizden gelen yardım çağrısı", "kendiliğinden açılan güvenlik kameraları"]
         kavramlar = ["psikolojik çöküş ve izolasyon", "doğaüstü varlıklar", "açıklanamayan zaman kaymaları", "klostrofobik gerilim", "paralel gerçeklik"]
@@ -158,7 +157,6 @@ def main():
     time.sleep(2)
     description = write_description(context, title)
 
-    # BURASI VE ALTINDAKİ HER ŞEY YANLIŞLIKLA SİLİNMİŞTİ
     with open("output/senaryo.txt", "w", encoding="utf-8") as f:
         f.write(script)
     with open("output/baslik.txt", "w", encoding="utf-8") as f:
