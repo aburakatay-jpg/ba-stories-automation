@@ -1,107 +1,97 @@
 #!/usr/bin/env python3
-"""
-Senaryoyu sahnelere böler, her sahne için arkaplan + metin içeren bir görsel oluşturur.
-Kullanım: python generate_scenes.py
-"""
-import os
+import sys
 import json
+import os
 import random
-import textwrap
-from PIL import Image, ImageDraw, ImageFont
+import requests
+import base64
+import time
 
-os.makedirs("output", exist_ok=True)
+def generate_image_ai(prompt, api_key):
+    # Yatay (16:9) video için özel sinematik korku promptu
+    enhanced_prompt = f"{prompt}. Dark spooky atmosphere, cinematic horror movie lighting, highly detailed, photorealistic, no text, empty background, 16:9 aspect ratio, wide landscape shot."
+    
+    if api_key:
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key={api_key}"
+            payload = {
+                "instances": [{"prompt": enhanced_prompt}],
+                "parameters": {
+                    "sampleCount": 1,
+                    "aspectRatio": "16:9",
+                    "outputOptions": {"mimeType": "image/jpeg"}
+                }
+            }
+            resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"})
+            if resp.ok:
+                b64 = resp.json()["predictions"][0]["bytesBase64Encoded"]
+                return base64.b64decode(b64)
+            else:
+                print(f"⚠️ Gemini API hatası: {resp.text}")
+        except Exception as e:
+             print(f"⚠️ API İletişim Hatası: {e}")
 
-def split_into_scenes(text, max_words=25):
-    """Metni cümlelere böler, her cümle bir sahne."""
-    sentences = text.replace('\n', ' ').split('. ')
-    scenes = []
-    for s in sentences:
-        s = s.strip()
-        if s:
-            # Cümlenin sonuna nokta ekle (eğer yoksa)
-            if not s.endswith('.'):
-                s += '.'
-            scenes.append(s)
-    # Eğer çok az sahne varsa, her 25 kelimede bir bölelim
-    if len(scenes) < 3:
-        words = text.split()
-        scenes = []
-        for i in range(0, len(words), max_words):
-            chunk = ' '.join(words[i:i+max_words])
-            if chunk:
-                scenes.append(chunk + '.')
-    return scenes
-
-def pick_background(theme, bg_dir="backgrounds"):
-    """Temaya uygun arkaplan resmi seç (alt klasör veya rastgele)."""
-    # Basitçe backgrounds klasöründen rastgele bir resim seç
-    if not os.path.exists(bg_dir):
-        return None
-    files = [f for f in os.listdir(bg_dir) if f.lower().endswith(('.jpg','.png','.jpeg'))]
-    if not files:
-        return None
-    return os.path.join(bg_dir, random.choice(files))
-
-def create_scene_image(text, output_path, bg_path=None):
-    """Bir sahne görseli oluştur."""
-    # Arkaplan
-    if bg_path and os.path.exists(bg_path):
-        img = Image.open(bg_path).convert('RGB')
-        img = img.resize((1080, 1920), Image.Resampling.LANCZOS)
-    else:
-        img = Image.new('RGB', (1080, 1920), color='#1a1a2e')
+    # Yedek Sistem (Pollinations AI - Yatay Format 1920x1080)
+    print("🔄 Yedek AI'a geçiliyor...")
+    safe_prompt = requests.utils.quote(enhanced_prompt)
+    seed_value = random.randint(1, 9999999) 
+    fallback_url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width=1920&height=1080&nologo=true&seed={seed_value}"
     
-    draw = ImageDraw.Draw(img)
-    
-    # Font
-    try:
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 72)
-    except:
-        font = ImageFont.load_default()
-    
-    # Metni sar ve ortala
-    wrapped = textwrap.fill(text, width=25)
-    bbox = draw.textbbox((0,0), wrapped, font=font)
-    w = bbox[2] - bbox[0]
-    h = bbox[3] - bbox[1]
-    
-    # Yarı saydam siyah kutu
-    box_x1 = (1080 - w)//2 - 40
-    box_y1 = (1920 - h)//2 - 40
-    box_x2 = (1080 + w)//2 + 40
-    box_y2 = (1920 + h)//2 + 40
-    draw.rectangle([box_x1, box_y1, box_x2, box_y2], fill=(0,0,0,180))
-    draw.text(((1080-w)//2, (1920-h)//2), wrapped, fill='white', font=font)
-    
-    img.save(output_path)
-    print(f"✅ Sahne görseli oluşturuldu: {output_path}")
+    resp = requests.get(fallback_url)
+    if resp.ok:
+        return resp.content
+    return None
 
 def main():
-    # Senaryoyu oku
-    with open("output/senaryo.txt", "r", encoding="utf-8") as f:
-        script = f.read().strip()
-    if not script:
-        print("❌ Senaryo boş!")
-        return
+    if len(sys.argv) < 4:
+        print("Kullanım: generate_scenes.py <tema_json> <senaryo_txt> <cikti_klasoru>")
+        sys.exit(1)
+        
+    tema_json = sys.argv[1]
+    senaryo_txt = sys.argv[2]
+    output_dir = sys.argv[3]
+    os.makedirs(output_dir, exist_ok=True)
+
+    gemini_api_key = os.environ.get("GEMINI_API_KEY", "")
+
+    with open(tema_json, "r", encoding="utf-8") as f:
+        tema = json.load(f)
     
-    # Temayı oku (arkaplan seçimi için)
-    theme = {}
-    if os.path.exists("output/tema.json"):
-        with open("output/tema.json", "r", encoding="utf-8") as f:
-            theme = json.load(f)
-    
-    scenes = split_into_scenes(script)
-    print(f"📝 {len(scenes)} sahne oluşturuldu.")
-    
-    # Her sahne için görsel üret
-    for i, scene_text in enumerate(scenes, start=1):
-        bg = pick_background(theme.get("tema", ""))
-        out_path = f"output/scene_{i:03d}.jpg"
-        create_scene_image(scene_text, out_path, bg)
-    
-    # Sahne sayısını bir dosyaya yaz (montaj scripti kullanacak)
-    with open("output/scene_count.txt", "w") as f:
-        f.write(str(len(scenes)))
+    tema_konusu = tema.get("tema", "korku")
+    tema_mekani = tema.get("mekan", "karanlık mekan")
+
+    with open(senaryo_txt, "r", encoding="utf-8") as f:
+        script = f.read()
+
+    # Senaryoyu kelimelere böl ve 18 eşit sahneye ayır (11 dakikalık video için ideal görsel değişimi)
+    words = script.split()
+    toplam_sahne = 18
+    chunk_size = len(words) // toplam_sahne
+    if chunk_size == 0:
+        chunk_size = 1
+        
+    kamera_acilari = [
+        "Wide tracking shot", "Extreme wide establishing shot", 
+        "Low angle ominous perspective", "Cinematic drone shot", 
+        "Eye-level mysterious view", "Over the shoulder eerie shot"
+    ]
+
+    for i in range(toplam_sahne):
+        # O sahnenin anahtar kelimelerini yakala
+        chunk_words = " ".join(words[i*chunk_size : (i+1)*chunk_size][:5])
+        sahne_promptu = f"Concept: {tema_konusu} at {tema_mekani}. Element: {chunk_words}. {random.choice(kamera_acilari)}"
+        
+        print(f"Sahne {i+1}/{toplam_sahne} üretiliyor...")
+        image_bytes = generate_image_ai(sahne_promptu, gemini_api_key)
+        
+        if image_bytes:
+            img_path = os.path.join(output_dir, f"scene_{i+1:03d}.jpg")
+            with open(img_path, "wb") as f:
+                f.write(image_bytes)
+            print(f"✅ Kaydedildi: {img_path}")
+        
+        # API limitine takılmamak için 5 saniye bekle
+        time.sleep(5)
 
 if __name__ == "__main__":
     main()
