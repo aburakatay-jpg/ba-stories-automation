@@ -1,317 +1,157 @@
 #!/usr/bin/env python3
-"""
-temalar.json'dan, SON KULLANILAN TEMALARI HARİÇ TUTARAK rastgele bir tema
-seçer, Groq API ile Türkçe forum-itirafı tonunda ORİJİNAL bir senaryo
-yazdırır. Çıktı: output/senaryo.txt, output/baslik.txt, output/aciklama.txt
-
-Gerekli ortam değişkeni: GROQ_API_KEY
-"""
 import json
 import os
 import random
 import time
-
 import requests
 
 os.makedirs("output", exist_ok=True)
+# Uzun metinler ve hikaye kurgusu için en yetenekli modellerden gemini-1.5-flash kullanıyoruz
+API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 
-API_URL = "https://api.groq.com/openai/v1/chat/completions"
-GECMIS_UZUNLUK = 8
+def clean_ai_text(text):
+    lines = text.split('\n')
+    cleaned = []
+    for line in lines:
+        line = line.strip()
+        lower_line = line.lower()
+        if lower_line.startswith(("işte", "tabii", "senaryo:", "başlık:", "tamam", "elbette", "uzun senaryo")):
+            continue
+        if line.startswith("```"):
+            continue
+        if line:
+            cleaned.append(line.replace('*', '').replace('"', '').replace('#', ''))
+    return "\n".join(cleaned).strip()
 
-
-def call_groq(messages, temperature, max_tokens, timeout=120, max_retries=5):
-    api_key = os.environ["GROQ_API_KEY"]
+def call_gemini(prompt, temperature=0.9, max_tokens=4000, max_retries=5):
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY bulunamadı! Lütfen GitHub workflow dosyasını kontrol et.")
+        
     for attempt in range(max_retries):
         resp = requests.post(
-            API_URL,
-            headers={"Authorization": f"Bearer {api_key}"},
+            f"{API_URL}?key={api_key}",
             json={
-                "model": "llama-3.3-70b-versatile",
-                "messages": messages,
-                "temperature": temperature,
-                "max_tokens": max_tokens,
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens},
             },
-            timeout=timeout,
+            timeout=120, # Uzun metin üretimi API tarafında zaman alabilir
         )
         if resp.status_code == 429:
-            wait = float(resp.headers.get("retry-after", 30))
-            wait = min(wait, 60)
-            print(f"Rate limit'e takıldık, {wait:.0f} saniye bekleniyor (deneme {attempt + 1}/{max_retries})...")
-            time.sleep(wait)
+            time.sleep(30)
             continue
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"].strip()
+        if not resp.ok:
+            raise RuntimeError(f"Gemini API hatası: {resp.status_code} - {resp.text}")
+        
+        raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        return clean_ai_text(raw_text)
+    raise RuntimeError("Gemini API'ye ulaşılamadı")
 
-    raise RuntimeError("Groq API'ye çok denemeden sonra bile ulaşılamadı (rate limit)")
-
-
-def pick_theme():
-    base_dir = os.path.dirname(__file__)
-    temalar_path = os.path.join(base_dir, "temalar.json")
-    gecmis_path = os.path.join(base_dir, "tema_gecmisi.json")
-
-    with open(temalar_path, "r", encoding="utf-8") as f:
-        temalar = json.load(f)
-
-    gecmis = []
-    if os.path.exists(gecmis_path):
-        with open(gecmis_path, "r", encoding="utf-8") as f:
-            gecmis = json.load(f)
-
-    uygun = [t for t in temalar if t["tema"] not in gecmis]
-    if not uygun:
-        uygun = temalar
-
-    secilen = random.choice(uygun)
-
-    gecmis.append(secilen["tema"])
-    gecmis = gecmis[-GECMIS_UZUNLUK:]
-    with open(gecmis_path, "w", encoding="utf-8") as f:
-        json.dump(gecmis, f, ensure_ascii=False, indent=2)
-
-    return secilen
-
-
-def write_script(theme):
-    anlatici = theme.get("anlatici", "kadin")
-    anlatici_tanim = (
-        "Anlatıcı: Otuzlu yaşlarında, sakin ama içten bir kadın. "
-        "Sesi titrek değil ama hafif kırılgan, sanki yaşananları "
-        "hâlâ sindirmeye çalışıyormuş gibi anlatıyor."
-        if anlatici == "kadin" else
-        "Anlatıcı: Ellili yaşlarında, ağır ve derin bir erkek. "
-        "Sesi sağlam ve kontrollü ama anlattıkça bir tedirginlik "
-        "sızıyor, sanki bazı şeyleri ilk kez dile getiriyor."
-    )
-
-    system_prompt = (
-        "Sen Türkçe bir korku/paranormal YouTube kanalı için senaryo "
-        "yazarısın. Sanki bir forum/itiraf sitesinde birinci ağızdan "
-        "gerçek yaşanmış gibi anlatılan, doğal ve akıcı bir Türkçe korku "
-        "hikayesi yaz. UZUNLUK ZORUNLU: 1800-2200 kelime — bu, 10-11 "
-        "dakikalık bir seslendirmeye denk gelir, kısa kesme. Bu uzunluğa "
-        "doğal ulaşmak için hikayeyi şu yapıda kur: (1) güçlü bir kanca "
-        "ile açılış, (2) sıradan bir başlangıç ve karakterlerin/ortamın "
-        "tanıtımı, (3) ilk tuhaflıklar ve artan şüphe, (4) olayların "
-        "yoğunlaşması — en az 2-3 ayrı gerilim anı/sahne, her biri bir "
-        "öncekinden daha rahatsız edici, (5) doruk noktası, (6) esrarını "
-        "koruyan bir kapanış (net açıklama yapma). Betimlemelerde cömert "
-        "ol (ortam, sesler, fiziksel tepkiler, iç ses), ama tekrar veya "
-        "doldurma hissi verme — her paragraf hikayeyi ileri taşısın. "
-        "Klişe jump-scare yerine yavaş yavaş büyüyen gerilim kullan. "
-        "Anlatıcı ASLA kendi adını söylemesin veya kendine isimle hitap "
-        "etmesin, sadece birinci ağızdan ('ben') anlatsın — sadece "
-        "hikayedeki diğer kişilere isim verilebilir. DİL KURALI: metin "
-        "SADECE düzgün, standart yazım kurallarına uygun Türkçe olacak. "
-        "Tek bir İngilizce kelime, marka adı ya da yabancı sözcük bile "
-        "kullanma. Uydurma, hatalı çekimlenmiş veya var olmayan kelime "
-        "kullanma - her kelime gerçek, doğru yazılmış bir Türkçe kelime "
-        "olmalı. Sadece senaryo metnini döndür, başlık veya başka "
-        "açıklama ekleme."
-    )
-
-    user_prompt = (
-        f"Tema: {theme['tema']}\nMekan: {theme['mekan']}\n"
-        f"{anlatici_tanim}\n\n"
-        "Bu tema, mekan ve anlatıcı profiline göre, 1800-2200 kelimelik "
-        "özgün ve sürükleyici bir hikaye yaz."
-    )
-
-    script = call_groq(
-        [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-        temperature=0.9,
-        max_tokens=6000,
-    )
-
-    words = script.split()
-    if len(words) > 1700:
-        script = " ".join(words[:1700])
-
-    attempts = 0
-    while len(script.split()) < 1400 and attempts < 2:
-        time.sleep(8)
-        cont = call_groq(
-            [
-                {
-                    "role": "system",
-                    "content": (
-                        "Aşağıdaki Türkçe korku hikayesinin devamını yaz. "
-                        "Aynı üslupta, kaldığı yerden akıcı şekilde devam "
-                        "et, tekrar etme, gerilimi bir üst seviyeye taşı. "
-                        "En az 600 kelime ekle. SADECE düzgün, standart "
-                        "yazım kurallarına uygun Türkçe kullan, İngilizce "
-                        "kelime veya uydurma/hatalı kelime kullanma. "
-                        "Sadece devam eden metni döndür, önceki kısmı "
-                        "tekrar yazma."
-                    ),
-                },
-                {"role": "user", "content": script},
-            ],
-            temperature=0.9,
-            max_tokens=4000,
-        )
-        script += "\n\n" + cont
-        attempts += 1
-
-    return script
-
-
-def proofread_script(script):
-    system_msg = (
-        "Sen bir Türkçe dil editörüsün. Sana verilen metni "
-        "dikkatlice gözden geçir ve SADECE şu hataları "
-        "düzelt: (1) yazım/imla hataları, (2) var olmayan "
-        "veya hatalı çekimlenmiş kelimeler, (3) İngilizce "
-        "veya yabancı kelimeleri doğru Türkçe karşılığıyla "
-        "değiştir. Metnin anlamını, uzunluğunu, üslubunu ve "
-        "cümle yapısını DEĞİŞTİRME - sadece hataları düzelt. "
-        "Sadece düzeltilmiş metni döndür, açıklama ekleme."
-    )
-
-    paragraphs = [p.strip() for p in script.split("\n\n") if p.strip()]
-    chunk_size = 3
-    corrected_chunks = []
-
-    for i in range(0, len(paragraphs), chunk_size):
-        chunk = "\n\n".join(paragraphs[i:i + chunk_size])
-        corrected = call_groq(
-            [
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": chunk},
-            ],
-            temperature=0.3,
-            max_tokens=2000,
-        )
-        corrected_chunks.append(corrected)
-        if i + chunk_size < len(paragraphs):
-            time.sleep(5)
-
-    return "\n\n".join(corrected_chunks)
-
-
-def write_title(theme):
-    return call_groq(
-        [
-            {
-                "role": "system",
-                "content": (
-                    "YouTube korku kanalı için merak uyandıran, kısa (en "
-                    "fazla 12 kelime) bir Türkçe başlık yaz. Soru formatı "
-                    "veya gizem vurgusu iyi çalışır. Sadece başlığı "
-                    "döndür, tırnak işareti kullanma."
-                ),
-            },
-            {"role": "user", "content": f"Tema: {theme['tema']}, Mekan: {theme['mekan']}"},
-        ],
-        temperature=0.8,
-        max_tokens=60,
-        timeout=30,
-    ).strip('"')
-
-
-def write_description(theme, title):
-    return call_groq(
-        [
-            {
-                "role": "system",
-                "content": (
-                    "YouTube korku videosu için SEO uyumlu bir açıklama "
-                    "yaz. 2-3 cümlelik merak uyandıran bir özet + "
-                    "aşağıya ilgili Türkçe hashtag'ler (en az 8 tane, "
-                    "örn. #korku #paranormal #gerçekhikaye #gizem gibi) "
-                    "ekle. Hikayenin sonunu ifşa etme. Sadece açıklama "
-                    "metnini döndür."
-                ),
-            },
-            {
-                "role": "user",
-                "content": f"Başlık: {title}\nTema: {theme['tema']}, Mekan: {theme['mekan']}",
-            },
-        ],
-        temperature=0.7,
-        max_tokens=300,
-        timeout=30,
-    )
-
-
-def write_cta():
-    return call_groq(
-        [
-            {
-                "role": "system",
-                "content": (
-                    "Türkçe bir korku/paranormal YouTube kanalı için, "
-                    "videonun sonuna eklenecek kısa (2-3 cümle) ve doğal "
-                    "bir kapanış metni yaz. Sanki anlatıcı hikayeyi "
-                    "bitirdikten sonra izleyiciye dönüyormuş gibi, sohbet "
-                    "tarzında olsun. Şu unsurları içersin: (1) hikayenin "
-                    "gerçek mi kurgu mu olduğu sorusu, (2) yorumlara "
-                    "davet, (3) abone ol çağrısı. Klişe ve yapay "
-                    "gelmesin, samimi ve kısa olsun. Sadece metni "
-                    "döndür."
-                ),
-            },
-            {
-                "role": "user",
-                "content": "Kanalımız için bir kapanış metni yaz.",
-            },
-        ],
-        temperature=0.8,
-        max_tokens=150,
-        timeout=30,
-    )
-
-
-def apply_series(theme, title):
+def get_series_info():
     seri_path = os.path.join(os.path.dirname(__file__), "seri_bilgisi.json")
+    if not os.path.exists(seri_path):
+        # Uzun formata (Yatay Video) uygun mikro seriler
+        default_series = {
+            "karanlik_arsivler": {"ad": "Karanlık Arşivler", "mekan": "Terk Edilmiş Devlet Arşivi", "sayac": 0},
+            "deniz_feneri": {"ad": "Yalnız Fener", "mekan": "Okyanus Ortasında Bir Deniz Feneri", "sayac": 0},
+            "kayip_kasetler": {"ad": "Kayıp Kasetler", "mekan": "Eski Bir Radyo İstasyonu", "sayac": 0}
+        }
+        with open(seri_path, "w", encoding="utf-8") as f:
+            json.dump(default_series, f, ensure_ascii=False, indent=2)
+        return default_series, seri_path
+    
     with open(seri_path, "r", encoding="utf-8") as f:
-        seriler = json.load(f)
+        return json.load(f), seri_path
 
-    seri_key = theme.get("seri")
-    if not seri_key or seri_key not in seriler:
-        return title, ""
+def generate_dynamic_context():
+    series_data, seri_path = get_series_info()
+    
+    # %30 ihtimalle bir seriye devam et
+    if random.random() < 0.30:
+        secilen_seri_key = random.choice(list(series_data.keys()))
+        series_data[secilen_seri_key]["sayac"] += 1
+        
+        with open(seri_path, "w", encoding="utf-8") as f:
+            json.dump(series_data, f, ensure_ascii=False, indent=2)
+            
+        ad = series_data[secilen_seri_key]["ad"]
+        bolum = series_data[secilen_seri_key]["sayac"]
+        mekan = series_data[secilen_seri_key]["mekan"]
+        
+        return {
+            "is_series": True,
+            "tema": ad,
+            "mekan": mekan,
+            "bolum_no": bolum,
+            "anlatici": random.choice(["erkek", "kadin"]),
+            "prompt_context": f"Bu hikaye '{ad}' isimli korku serisinin {bolum}. bölümüdür. Ana karakterimiz bu serinin odak kişisidir. Yaklaşık 10-12 dakikalık bir okuma süresi için detaylı, sürükleyici ve yavaş yavaş gerilimi tırmandıran bir olay örgüsü yaz."
+        }
+    else:
+        # %70 ihtimalle rastgele uzun metraj korku kurgusu
+        mekanlar = ["ıssız bir kargo gemisi", "karlar altında kalmış bir dağ oteli", "eski bir akıl hastanesi kalıntısı", "gece yarısı boş bir otoyol dinlenme tesisi", "derin bir orman kulübesi", "terk edilmiş bir lunapark"]
+        nesneler = ["isimsiz bir kaset", "gece yarısı çalan ankesörlü telefon", "duvardaki tuhaf çizimler", "eski bir telsizden gelen yardım çağrısı", "kendiliğinden açılan güvenlik kameraları"]
+        kavramlar = ["psikolojik çöküş ve izolasyon", "doğaüstü varlıklar", "açıklanamayan zaman kaymaları", "klostrofobik gerilim", "paralel gerçeklik"]
+        
+        mekan = random.choice(mekanlar)
+        nesne = random.choice(nesneler)
+        kavram = random.choice(kavramlar)
+        
+        tema_adi = f"{kavram}, Odak: {nesne}"
+        
+        return {
+            "is_series": False,
+            "tema": tema_adi,
+            "mekan": mekan,
+            "anlatici": random.choice(["erkek", "kadin"]),
+            "prompt_context": f"Mekan: {mekan}. Odak Nesne/Durum: {nesne}. Hikayenin Alt Türü: {kavram}. Bu unsurları kullanarak detaylı tasvirler içeren, karakterin psikolojisini yansıtan ve gerilimi adım adım tırmandıran uzun ve eşsiz bir kurgu yarat."
+        }
 
-    seriler[seri_key]["sayac"] += 1
-    with open(seri_path, "w", encoding="utf-8") as f:
-        json.dump(seriler, f, ensure_ascii=False, indent=2)
+def write_script(context):
+    prompt = (
+        f"Sen Türkçe bir korku YouTube kanalı için senaryo yazarısın. "
+        f"Bu video UZUN FORMATLI bir videodur (yaklaşık 10-12 dakika seslendirme süresi hedefleniyor). "
+        f"Lütfen en az 1000 - 1200 kelime uzunluğunda, çok detaylı, atmosferi ilmek ilmek işleyen, "
+        f"sanki bir forumda veya Reddit'te birinci ağızdan ('ben') anlatılan gerçek bir olay gibi yaz.\n\n"
+        f"BAĞLAM VE KONU: {context['prompt_context']}\n\n"
+        f"KURALLAR:\n"
+        f"1. Asla 'İşte senaryo' gibi girişler yapma. Direkt hikayeye, bulunduğun mekanı ve durumu tasvir ederek başla.\n"
+        f"2. Olayları hemen oldurma. İlk birkaç paragrafta karakterin rutinini, yalnızlığını ve mekanın ürkütücülüğünü anlat.\n"
+        f"3. Gerilimi yavaş yavaş tırmandır, gizemi son anlara kadar koru ve çarpıcı bir final yap.\n"
+        f"4. SADECE düzgün Türkçe kullan ve sadece senaryo metnini döndür."
+    )
+    return call_gemini(prompt, temperature=0.9, max_tokens=4000)
 
-    yeni_baslik = f"{seriler[seri_key]['ad']} #{seriler[seri_key]['sayac']}: {title}"
-    return yeni_baslik, seriler[seri_key]["playlist_id"]
+def write_title(context):
+    prompt = (
+        f"YouTube uzun korku videosu için en fazla 8 kelimelik, merak uyandıran, tıklamaya teşvik eden (CTR yüksek) bir Türkçe başlık yaz.\n"
+        f"İçerik Bağlamı: {context['prompt_context']}\n"
+        f"Sadece başlığı döndür."
+    )
+    title = call_gemini(prompt, temperature=0.8, max_tokens=50)
+    
+    if context["is_series"]:
+        clean_title = title.replace('"', '').replace("'", "").strip()
+        return f"{clean_title} | {context['tema']} #{context['bolum_no']}"
+    
+    return title
 
+def write_description(context, title):
+    prompt = (
+        f"YouTube uzun korku videosu için SEO uyumlu, izleyiciyi içine çekecek detaylı bir açıklama yaz. "
+        f"İlk paragraf merak uyandıran bir özet olsun. Altına ilgili Türkçe hashtag'ler (en az 10 tane) ekle. "
+        f"Sadece açıklamayı döndür.\nBaşlık: {title}\nBağlam: {context['prompt_context']}"
+    )
+    return call_gemini(prompt, temperature=0.7, max_tokens=400)
 
 def main():
-    theme = pick_theme()
-    script = write_script(theme)
+    context = generate_dynamic_context()
+    print(f"Senaryo üretiliyor... (Tema: {context['tema']})")
+    
+    script = write_script(context)
 
-    time.sleep(8)
-    script = proofread_script(script)
+    time.sleep(2)
+    title = write_title(context)
+    title = title.replace('"', '').replace("'", "")
 
-    time.sleep(5)
-    cta = write_cta()
-    script = script + "\n\n" + cta
-
-    time.sleep(8)
-    title = write_title(theme)
-    title, playlist_id = apply_series(theme, title)
-
-    time.sleep(5)
-    description = write_description(theme, title)
-
-    with open("output/senaryo.txt", "w", encoding="utf-8") as f:
-        f.write(script)
-    with open("output/baslik.txt", "w", encoding="utf-8") as f:
-        f.write(title)
-    with open("output/aciklama.txt", "w", encoding="utf-8") as f:
-        f.write(description)
-    with open("output/tema.json", "w", encoding="utf-8") as f:
-        json.dump(theme, f, ensure_ascii=False)
-    with open("output/playlist_id.txt", "w", encoding="utf-8") as f:
-        f.write(playlist_id)
-    with open("output/anlatici.txt", "w", encoding="utf-8") as f:
-        f.write(theme.get("anlatici", "kadin"))
-
-    print(f"OK: {len(script)} karakterlik senaryo üretildi — '{title}'")
-
-
-if __name__ == "__main__":
-    main()
+    time.sleep(2)
+    description = write_description(context, title)
