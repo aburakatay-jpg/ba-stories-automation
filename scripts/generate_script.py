@@ -26,7 +26,7 @@ def clean_ai_text(text):
 def call_gemini(prompt, temperature=0.9, max_tokens=4000, max_retries=5):
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        raise ValueError("GEMINI_API_KEY bulunamadı! Lütfen GitHub workflow dosyasını kontrol et.")
+        raise ValueError("GEMINI_API_KEY bulunamadı!")
         
     for attempt in range(max_retries):
         resp = requests.post(
@@ -34,17 +34,34 @@ def call_gemini(prompt, temperature=0.9, max_tokens=4000, max_retries=5):
             json={
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens},
+                # Güvenlik filtrelerini en geniş ayara alıyoruz ki korku hikayesini engellemesin
+                "safetySettings": [
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+                ]
             },
-            timeout=120, 
+            timeout=120,
         )
         if resp.status_code in [429, 503]:
-            print(f"⏳ API yoğun (Hata {resp.status_code}), 60 saniye bekleniyor...")
             time.sleep(60)
             continue
         if not resp.ok:
             raise RuntimeError(f"Gemini API hatası: {resp.status_code} - {resp.text}")
         
-        raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        data = resp.json()
+        # Hata ayıklama için cevabı yazdır
+        if "candidates" not in data or not data["candidates"]:
+            print(f"DEBUG: Gelen cevapta candidate yok: {data}")
+            raise RuntimeError("API cevabında candidate bulunamadı.")
+            
+        candidate = data["candidates"][0]
+        if "content" not in candidate or "parts" not in candidate["content"]:
+            print(f"DEBUG: İçerik yapısı hatalı: {candidate}")
+            raise RuntimeError("API cevabında content veya parts bulunamadı.")
+
+        raw_text = candidate["content"]["parts"][0].get("text", "")
         return clean_ai_text(raw_text)
     raise RuntimeError("Gemini API'ye ulaşılamadı")
 
