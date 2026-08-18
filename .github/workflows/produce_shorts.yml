@@ -58,12 +58,7 @@ jobs:
           git diff --staged --quiet || git commit -m "tema gecmisi guncellendi [skip ci]"
           git push
 
-  onay_ve_yukleme:
-    needs: generate
-    runs-on: ubuntu-latest
-    environment: youtube-upload
-    steps:
-      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           name: video-cikti
