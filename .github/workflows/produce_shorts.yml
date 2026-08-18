@@ -68,13 +68,12 @@ jobs:
           python-version: '3.11'
       - name: YouTube bağımlılıkları
         run: pip install google-api-python-client google-auth google-auth-oauthlib
-      - name: YouTube'a yükle
+      -- name: YouTube'a yükle
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
-        run: python scripts/upload_youtube.py output/video.mp4 output/baslik.txt output/aciklama.txt output/playlist_id.txt
-
+        run: python scripts/upload_youtube.py output/video.mp4 output/baslik.txt output/aciklama.txt output/thumbnail.jpg output/playlist_id.txt
   bildirim:
     needs: [generate, onay_ve_yukleme]
     runs-on: ubuntu-latest
