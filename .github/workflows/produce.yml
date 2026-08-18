@@ -16,23 +16,31 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Bağımlılıkları kur
+      - name: Sistem bağımlılıkları (FFmpeg)
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg
-          pip install requests
+
+      - name: Python bağımlılıkları
+        run: |
+          pip install --upgrade pip
+          pip install pillow edge-tts requests google-api-python-client google-auth-oauthlib
 
       - name: Hikaye çek ve senaryo yaz (Groq)
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: python scripts/generate_script.py
-      - name: Seslendirme üret (Google WaveNet)
-        env:
-          AZURE_TTS_KEY: ${{ secrets.AZURE_TTS_KEY }}
-          AZURE_TTS_REGION: ${{ secrets.AZURE_TTS_REGION }}
+
+      - name: Seslendirme üret (Edge TTS)
         run: python scripts/generate_tts.py output/senaryo.txt output/ses.mp3
 
-      - name: Video kurgula (FFmpeg, 16:9 zorlanmış)
-        run: python scripts/assemble_video.py backgrounds/yatay output/ses.mp3 output/video.mp4 music vid_
+      - name: Sahne Görsellerini Üret (16:9 Yapay Zeka)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python scripts/generate_scenes.py output/tema.json output/senaryo.txt output/scenes
+
+      - name: Video kurgula (FFmpeg, 16:9 Ken Burns & XFade)
+        run: python scripts/assemble_video.py output/scenes output/ses.mp3 output/video.mp4 music vid_
+
       - name: Thumbnail üret
         run: python scripts/generate_thumbnail.py output/tema.json output/baslik.txt output/thumbnail.jpg
 
@@ -54,7 +62,8 @@ jobs:
   onay_ve_yukleme:
     needs: generate
     runs-on: ubuntu-latest
-    environment: youtube-upload   # bu environment'ta "Required reviewers" açık olacak
+    # Onay sistemini GitHub ayarlarından kapattığın için 'environment' satırını tamamen kaldırdık. 
+    # Sistem artık duraksamadan YouTube'a yükleme yapacak.
     steps:
       - uses: actions/checkout@v4
 
