@@ -63,10 +63,10 @@ def get_series_info():
     with open(seri_path, "r", encoding="utf-8") as f:
         return json.load(f), seri_path
 
-# generate_script.py içindeki ilgili fonksiyonu bununla değiştir:
 def generate_dynamic_context():
     series_data, seri_path = get_series_info()
     
+    # %30 ihtimalle bir seriye devam et
     if random.random() < 0.30:
         secilen_seri_key = random.choice(list(series_data.keys()))
         series_data[secilen_seri_key]["sayac"] += 1
@@ -76,9 +76,7 @@ def generate_dynamic_context():
             
         ad = series_data[secilen_seri_key].get("ad", "Gizemli Hikaye")
         bolum = series_data[secilen_seri_key].get("sayac", 1)
-        # HATAYI ÖNLEYEN KISIM: Eğer mekan yoksa varsayılan değer ata
         mekan = series_data[secilen_seri_key].get("mekan", "Karanlık ve tekinsiz bir yer")
-        # PLAYLIST ID OKUMA
         playlist_id = series_data[secilen_seri_key].get("playlist_id", "")
         
         return {
@@ -91,6 +89,7 @@ def generate_dynamic_context():
             "prompt_context": f"Bu hikaye '{ad}' isimli korku serisinin {bolum}. bölümüdür. Ana karakterimiz bu serinin odak kişisidir. Yaklaşık 10-12 dakikalık bir okuma süresi için detaylı, sürükleyici ve yavaş yavaş gerilimi tırmandıran bir olay örgüsü yaz."
         }
     else:
+        # %70 ihtimalle rastgele uzun metraj korku kurgusu
         mekanlar = ["ıssız bir kargo gemisi", "karlar altında kalmış bir dağ oteli", "eski bir akıl hastanesi kalıntısı", "gece yarısı boş bir otoyol dinlenme tesisi", "derin bir orman kulübesi", "terk edilmiş bir lunapark"]
         nesneler = ["isimsiz bir kaset", "gece yarısı çalan ankesörlü telefon", "duvardaki tuhaf çizimler", "eski bir telsizden gelen yardım çağrısı", "kendiliğinden açılan güvenlik kameraları"]
         kavramlar = ["psikolojik çöküş ve izolasyon", "doğaüstü varlıklar", "açıklanamayan zaman kaymaları", "klostrofobik gerilim", "paralel gerçeklik"]
@@ -99,18 +98,16 @@ def generate_dynamic_context():
         nesne = random.choice(nesneler)
         kavram = random.choice(kavramlar)
         
+        tema_adi = f"{kavram}, Odak: {nesne}"
+        
         return {
             "is_series": False,
-            "tema": f"{kavram}, Odak: {nesne}",
+            "tema": tema_adi,
             "mekan": mekan,
             "playlist_id": "",
             "anlatici": random.choice(["erkek", "kadin"]),
             "prompt_context": f"Mekan: {mekan}. Odak Nesne/Durum: {nesne}. Hikayenin Alt Türü: {kavram}. Bu unsurları kullanarak detaylı tasvirler içeren, karakterin psikolojisini yansıtan ve gerilimi adım adım tırmandıran uzun ve eşsiz bir kurgu yarat."
         }
-
-# Aynı dosyanın en altındaki main() fonksiyonu içinde playlist txt kaydetme satırını şöyle değiştir:
-    with open("output/playlist_id.txt", "w", encoding="utf-8") as f:
-        f.write(context.get("playlist_id", ""))
 
 def write_script(context):
     prompt = (
@@ -161,3 +158,27 @@ def main():
 
     time.sleep(2)
     description = write_description(context, title)
+
+    # BURASI VE ALTINDAKİ HER ŞEY YANLIŞLIKLA SİLİNMİŞTİ
+    with open("output/senaryo.txt", "w", encoding="utf-8") as f:
+        f.write(script)
+    with open("output/baslik.txt", "w", encoding="utf-8") as f:
+        f.write(title)
+    with open("output/aciklama.txt", "w", encoding="utf-8") as f:
+        f.write(description)
+        
+    tema_ciktisi = {
+        "tema": context["tema"], 
+        "mekan": context["mekan"],
+        "anlatici": context["anlatici"]
+    }
+    with open("output/tema.json", "w", encoding="utf-8") as f:
+        json.dump(tema_ciktisi, f, ensure_ascii=False)
+        
+    with open("output/playlist_id.txt", "w", encoding="utf-8") as f:
+        f.write(context.get("playlist_id", ""))
+
+    print(f"✅ Üretim tamamlandı (Uzun Video). Uzunluk: {len(script)} karakter. Başlık: '{title}'")
+
+if __name__ == "__main__":
+    main()
