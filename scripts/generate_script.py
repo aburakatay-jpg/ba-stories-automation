@@ -7,7 +7,7 @@ import requests
 
 os.makedirs("output", exist_ok=True)
 
-PI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent"
+API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent"
 def clean_ai_text(text):
     lines = text.split('\n')
     cleaned = []
