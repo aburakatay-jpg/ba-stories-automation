@@ -6,9 +6,8 @@ import time
 import requests
 
 os.makedirs("output", exist_ok=True)
-# Uzun metinler ve hikaye kurgusu için en yetenekli modellerden gemini-1.5-flash kullanıyoruz
-API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 
+API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash:generateContent"
 def clean_ai_text(text):
     lines = text.split('\n')
     cleaned = []
