@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 import json
 import os
-import random
 import subprocess
 import sys
-import tempfile
-
-MAX_DURATION = 660  # maksimum 11 dakika
-
+import glob
+import random
 
 def get_duration(path):
     result = subprocess.run(
@@ -16,97 +13,90 @@ def get_duration(path):
     )
     return float(json.loads(result.stdout)["format"]["duration"])
 
-
-def pick_music(music_dir, prefix):
-    files = [f for f in os.listdir(music_dir) if f.startswith(prefix) and f.lower().endswith((".mp3", ".wav", ".m4a"))]
-    if not files:
-        return None
-    return os.path.join(music_dir, random.choice(files))
-
-
 def main():
-    if len(sys.argv) != 6:
-        print("Kullanım: assemble_video.py <bg_dir> <ses.mp3> <cikti.mp4> <music_dir> <music_prefix>", file=sys.stderr)
+    if len(sys.argv) not in (5, 6):
+        print("Kullanım: assemble_video.py <gorsel_klasoru> <ses.mp3> <cikti.mp4> <music_dir> [music_prefix]")
         sys.exit(1)
 
-    bg_dir, audio_path, output_path, music_dir, music_prefix = sys.argv[1:6]
-    audio_duration = min(get_duration(audio_path), MAX_DURATION)
-    music_path = pick_music(music_dir, music_prefix)
+    img_dir = sys.argv[1]
+    audio_path = sys.argv[2]
+    output_path = sys.argv[3]
+    music_dir = sys.argv[4]
+    music_prefix = sys.argv[5] if len(sys.argv) == 6 else ""
 
-    bg_files = [os.path.join(bg_dir, f) for f in os.listdir(bg_dir) if f.lower().endswith((".mp4", ".mov"))]
-    if not bg_files:
-        raise RuntimeError(f"{bg_dir} içinde arka plan videosu bulunamadı")
+    images = sorted(glob.glob(os.path.join(img_dir, "*.jpg")))
+    
+    if not images:
+        print(f"{img_dir} içinde hiç görsel bulunamadı!")
+        sys.exit(1)
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8") as f:
-        concat_list = f.name
-        total = 0.0
-        used = []
-        random.shuffle(bg_files)
-        i = 0
-        while total < audio_duration:
-            clip = bg_files[i % len(bg_files)]
-            used.append(clip)
-            total += get_duration(clip)
-            f.write(f"file '{os.path.abspath(clip)}'\n")
-            i += 1
-            if i % len(bg_files) == 0:
-                random.shuffle(bg_files)
-            if len(used) >= 6:
-                break
-
-    # Adım 1: Videoları birleştir
-    temp_video = output_path + "_temp_video.mp4"
-    subprocess.run([
-        "ffmpeg", "-y",
-        "-f", "concat", "-safe", "0", "-i", concat_list,
-        "-vf", "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1",
-        "-c:v", "libx264", "-preset", "medium", "-crf", "23",
-        "-t", str(audio_duration),
-        "-an", temp_video,
-    ], check=True)
-    os.unlink(concat_list)
-
-    # Adım 2: Sesi karıştır
-    temp_audio = output_path + "_temp_audio.aac"
-    if music_path:
-        subprocess.run([
-            "ffmpeg", "-y",
-            "-i", audio_path,
-            "-stream_loop", "-1", "-i", music_path,
-            "-filter_complex",
-            "[0:a]volume=1.0[narr];"
-            "[1:a]volume=0.08[music];"
-            "[narr][music]amix=inputs=2:duration=first:normalize=0[premix];"
-            "[premix]loudnorm=I=-14:TP=-1.5:LRA=11[aout]",
-            "-map", "[aout]",
-            "-c:a", "aac", "-b:a", "128k",
-            "-t", str(audio_duration),
-            temp_audio,
-        ], check=True)
+    audio_duration = get_duration(audio_path)
+    fps = 30
+    N = len(images)
+    fade_dur = 1.5 # Uzun videolar için daha yavaş, 1.5 saniyelik sinematik geçiş
+    
+    if N > 1:
+        clip_duration = (audio_duration + (N - 1) * fade_dur) / N
     else:
-        subprocess.run([
-            "ffmpeg", "-y",
-            "-i", audio_path,
-            "-af", "loudnorm=I=-14:TP=-1.5:LRA=11",
-            "-c:a", "aac", "-b:a", "128k",
-            "-t", str(audio_duration),
-            temp_audio,
-        ], check=True)
+        clip_duration = audio_duration
+        
+    frames_per_image = int(clip_duration * fps)
+    actual_clip_duration = frames_per_image / fps
+    
+    cmd = ["ffmpeg", "-y"]
 
-    # Adım 3: Video + ses birleştir
-    subprocess.run([
-        "ffmpeg", "-y",
-        "-i", temp_video,
-        "-i", temp_audio,
-        "-c:v", "copy", "-c:a", "copy",
-        "-shortest",
-        output_path,
-    ], check=True)
+    for img in images:
+        cmd += ["-loop", "1", "-i", img]
 
-    os.unlink(temp_video)
-    os.unlink(temp_audio)
-    print(f"OK: {output_path} ({len(used)} klip, müzik: {'var' if music_path else 'yok'})")
+    cmd += ["-i", audio_path]
 
+    music_path = None
+    if os.path.exists(music_dir):
+        music_files = [f for f in os.listdir(music_dir) if f.startswith(music_prefix) and f.endswith(('.mp3','.wav'))]
+        if music_files:
+            music_path = os.path.join(music_dir, random.choice(music_files))
+            cmd += ["-stream_loop", "-1", "-i", music_path]
+
+    filter_parts = []
+    video_maps = []
+    
+    for i, img in enumerate(images):
+        # 1920x1080 Yatay Ken Burns Efekti (Çok daha yavaş ve dengeli bir yakınlaşma)
+        vf = f"zoompan=z='min(zoom+0.00015,1.2)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames_per_image}:s=1920x1080:fps={fps}"
+        filter_parts.append(f"[{i}:v]{vf},setpts=PTS-STARTPTS,format=yuv420p[v{i}]")
+        
+    if N == 1:
+        filter_parts.append(f"[v0]copy[outv]")
+    else:
+        current_offset = actual_clip_duration - fade_dur
+        last_out = "v0"
+        for i in range(1, N):
+            next_out = f"f{i}" if i < N - 1 else "outv"
+            filter_parts.append(f"[{last_out}][v{i}]xfade=transition=fade:duration={fade_dur}:offset={current_offset:.3f}[{next_out}]")
+            last_out = next_out
+            current_offset += (actual_clip_duration - fade_dur)
+
+    audio_idx = len(images)
+    if music_path:
+        music_idx = len(images) + 1
+        filter_parts.append(f"[{music_idx}:a]volume=0.10[music_vol]") # Yatay videolarda müzik sesi biraz daha kısık olmalı
+        filter_parts.append(f"[music_vol][{audio_idx}:a]sidechaincompress=threshold=0.05:ratio=8:attack=20:release=400:makeup=1[music_duck]")
+        filter_parts.append(f"[{audio_idx}:a][music_duck]amix=inputs=2:duration=first:normalize=0[aout]")
+        audio_map = "[aout]"
+    else:
+        audio_map = f"{audio_idx}:a:0"
+
+    filter_complex = ";".join(filter_parts)
+
+    cmd += ["-filter_complex", filter_complex]
+    cmd += ["-map", "[outv]", "-map", audio_map]
+    cmd += ["-c:v", "libx264", "-preset", "medium", "-crf", "23"]
+    cmd += ["-c:a", "aac", "-b:a", "128k"]
+    cmd += ["-t", str(audio_duration)]
+    cmd += [output_path]
+
+    subprocess.run(cmd, check=True)
+    print(f"Yatay Video oluşturuldu: {output_path}")
 
 if __name__ == "__main__":
     main()
