@@ -99,7 +99,7 @@ def generate_dynamic_context():
             "bolum_no": bolum,
             "playlist_id": playlist_id,
             "anlatici": random.choice(["erkek", "kadin"]),
-            "prompt_context": f"Bu hikaye '{ad}' isimli korku serisinin {bolum}. bölümüdür. Ana karakterimiz bu serinin odak kişisidir. Yaklaşık 10-12 dakikalık bir okuma süresi için detaylı, sürükleyici ve yavaş yavaş gerilimi tırmandıran bir olay örgüsü yaz."
+            "prompt_context": f"Bu hikaye '{ad}' isimli korku serisinin {bolum}. bölümüdür. Ana karakterimiz bu serinin odak kişisidir."
         }
     else:
         mekanlar = ["ıssız bir kargo gemisi", "karlar altında kalmış bir dağ oteli", "eski bir akıl hastanesi kalıntısı", "gece yarısı boş bir otoyol dinlenme tesisi", "derin bir orman kulübesi", "terk edilmiş bir lunapark"]
@@ -118,29 +118,28 @@ def generate_dynamic_context():
             "mekan": mekan,
             "playlist_id": "",
             "anlatici": random.choice(["erkek", "kadin"]),
-            "prompt_context": f"Mekan: {mekan}. Odak Nesne/Durum: {nesne}. Hikayenin Alt Türü: {kavram}. Bu unsurları kullanarak detaylı tasvirler içeren, karakterin psikolojisini yansıtan ve gerilimi adım adım tırmandıran uzun ve eşsiz bir kurgu yarat."
+            "prompt_context": f"Mekan: {mekan}. Odak Nesne: {nesne}. Tema: {kavram}."
         }
 
 def write_script(context):
     prompt = (
         f"Sen Türkçe bir korku YouTube kanalı için senaryo yazarısın. "
-        f"Bu video UZUN FORMATLI bir videodur (yaklaşık 10-12 dakika seslendirme süresi hedefleniyor). "
-        f"Lütfen en az 1000 - 1200 kelime uzunluğunda, çok detaylı, atmosferi ilmek ilmek işleyen, "
-        f"sanki bir forumda veya Reddit'te birinci ağızdan ('ben') anlatılan gerçek bir olay gibi yaz.\n\n"
-        f"BAĞLAM VE KONU: {context['prompt_context']}\n\n"
-        f"KURALLAR:\n"
-        f"1. Asla 'İşte senaryo' gibi girişler yapma. Direkt hikayeye, bulunduğun mekanı ve durumu tasvir ederek başla.\n"
-        f"2. Olayları hemen oldurma. İlk birkaç paragrafta karakterin rutinini, yalnızlığını ve mekanın ürkütücülüğünü anlat.\n"
-        f"3. Gerilimi yavaş yavaş tırmandır, gizemi son anlara kadar koru ve çarpıcı bir final yap.\n"
-        f"4. SADECE düzgün Türkçe kullan ve sadece senaryo metnini döndür."
+        f"Lütfen en az 1000 - 1200 kelime uzunluğunda, atmosferi ilmek ilmek işleyen, "
+        f"birinci ağızdan ('ben') anlatılan gerçekçi bir olay yaz.\n\n"
+        f"BAĞLAM: {context['prompt_context']}\n\n"
+        f"YAPI VE KURALLAR:\n"
+        f"1. GİRİŞ: Direkt hikayeye başla. Karakterin yalnızlığını ve mekanı detaylı tasvir et.\n"
+        f"2. GELİŞME: Olayları yavaş yavaş tırmandır, gizemi derinleştir.\n"
+        f"3. FİNAL (ÇOK ÖNEMLİ): Hikayeyi ASLA yarım veya açık uçlu bırakma. Karakterin başına gelenleri, yüzleştiği dehşeti net ve sarsıcı bir sonla tamamen bağla.\n"
+        f"4. Sadece senaryo metnini ver, başka hiçbir açıklama yazma."
     )
     return call_gemini(prompt, temperature=0.9, max_tokens=4000)
 
 def write_title(context):
     prompt = (
-        f"Şu korku hikayesi için 5-8 kelimelik, aşırı merak uyandıran, tıklama oranı yüksek bir Türkçe YouTube başlığı yaz:\n"
-        f"Konu: {context['prompt_context']}\n"
-        f"ZORUNLU KURAL: Tırnak işareti, 'Başlık:' kelimesi veya hiçbir ek açıklama kullanma. Sadece başlık metnini ver."
+        f"Aşağıdaki konsepte uygun, YouTube için 5-8 kelimelik, ilgi çekici bir korku videosu başlığı yaz.\n"
+        f"Konsept: {context['prompt_context']}\n"
+        f"Lütfen sadece başlığı ver, ekstra hiçbir açıklama veya tırnak işareti ekleme."
     )
     title = call_gemini(prompt, temperature=0.8, max_tokens=40)
     
@@ -155,8 +154,8 @@ def write_title(context):
 
 def write_description(context, title):
     prompt = (
-        f"YouTube uzun korku videosu için SEO uyumlu, izleyiciyi içine çekecek detaylı bir açıklama yaz. "
-        f"İlk paragraf merak uyandıran bir özet olsun. Altına ilgili Türkçe hashtag'ler (en az 10 tane) ekle. "
+        f"YouTube korku videosu için SEO uyumlu bir açıklama yaz. "
+        f"İlk paragraf merak uyandıran bir özet olsun. Altına ilgili Türkçe hashtag'ler ekle. "
         f"Sadece açıklamayı döndür.\nBaşlık: {title}\nBağlam: {context['prompt_context']}"
     )
     return call_gemini(prompt, temperature=0.7, max_tokens=400)
