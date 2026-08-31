@@ -141,7 +141,7 @@ def write_title(context):
         f"Konsept: {context['prompt_context']}\n"
         f"Lütfen sadece başlığı ver, ekstra hiçbir açıklama veya tırnak işareti ekleme."
     )
-    title = call_gemini(prompt, temperature=0.8, max_tokens=40)
+    title = call_gemini(prompt, temperature=0.8, max_tokens=150)
     
     clean_title = title.replace('"', '').replace('*', '').replace("'", "").strip()
     if clean_title.lower().startswith("başlık:"):
@@ -192,3 +192,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
