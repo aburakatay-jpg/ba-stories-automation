@@ -2,26 +2,33 @@
 import sys
 import json
 import os
-import urllib.request
 import urllib.parse
 import time
+import requests
 
 def get_thumbnail(prompt, output_path):
-    # Boşlukları ve özel karakterleri URL formatına uygun hale getiriyoruz
     safe_prompt = urllib.parse.quote(prompt)
     seed = int(time.time())
     
-    # Pollinations AI - Hızlı, ücretsiz ve API Key gerektirmez
     url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width=1920&height=1080&nologo=true&seed={seed}"
     
     print(f"🖼️ Kapak fotoğrafı üretiliyor...")
     
-    # API hata verirse diye 3 kez tekrar deneme mantığı
+    # 403 Forbidden hatasını aşmak için sisteme standart bir Chrome tarayıcısı kimliği veriyoruz
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            # 30 saniye zaman aşımı sınırı
-            urllib.request.urlretrieve(url, output_path)
+            # urllib yerine daha stabil olan requests kütüphanesini kullanıyoruz
+            response = requests.get(url, headers=headers, timeout=45)
+            response.raise_for_status() # Eğer 200 OK (Başarılı) dışı bir kod dönerse direkt except bloğuna atlar
+            
+            with open(output_path, "wb") as f:
+                f.write(response.content)
+                
             print("✅ Kapak fotoğrafı başarıyla üretildi!")
             return True
         except Exception as e:
