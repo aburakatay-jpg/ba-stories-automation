@@ -1,113 +1,138 @@
 #!/usr/bin/env python3
 import json
 import os
-import subprocess
-import sys
-import glob
 import random
+import time
+import requests
 
-def get_duration(path):
-    result = subprocess.run(
-        ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", path],
-        capture_output=True, text=True, check=True,
+os.makedirs("output", exist_ok=True)
+API_URL = "[https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent](https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent)"
+
+def clean_ai_text(text):
+    lines = text.split('\n')
+    cleaned = []
+    for line in lines:
+        line = line.strip()
+        lower_line = line.lower()
+        if lower_line.startswith(("işte", "tabii", "senaryo:", "başlık:", "tamam", "elbette", "shorts")):
+            continue
+        if line.startswith("```"):
+            continue
+        if line:
+            cleaned.append(line.replace('*', '').replace('"', '').replace('#', ''))
+    return "\n".join(cleaned).strip()
+
+def call_gemini(prompt, temperature=0.9, max_tokens=1000, max_retries=6):
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY bulunamadı!")
+        
+    for attempt in range(max_retries):
+        resp = requests.post(
+            f"{API_URL}?key={api_key}",
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens},
+                "safetySettings": [
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+                ]
+            },
+            timeout=120,
+        )
+        if resp.status_code in [429, 503]:
+            print(f"⏳ API yoğun. 60 saniye bekleniyor... (Deneme {attempt+1}/{max_retries})")
+            time.sleep(60)
+            continue
+        if not resp.ok:
+            raise RuntimeError(f"Gemini API hatası: {resp.status_code} - {resp.text}")
+        
+        data = resp.json()
+        if "candidates" not in data or not data["candidates"]:
+            raise RuntimeError("API cevabında candidate bulunamadı.")
+            
+        candidate = data["candidates"][0]
+        if "content" not in candidate or "parts" not in candidate["content"]:
+            raise RuntimeError("API cevabında content veya parts bulunamadı.")
+
+        raw_text = candidate["content"]["parts"][0].get("text", "")
+        return clean_ai_text(raw_text)
+    raise RuntimeError("Gemini API'ye ulaşılamadı.")
+
+def generate_dynamic_context():
+    mekanlar = ["ıssız bir asansör", "gece yarısı boş bir metro vagonu", "eski bir akıl hastanesi kalıntısı", "orman yolunda tek başına bir araba", "terk edilmiş bir lunapark"]
+    nesneler = ["isimsiz bir kaset", "gece yarısı çalan eski model bir telefon", "duvardaki tuhaf çizimler", "kendiliğinden açılan güvenlik kameraları", "aynadaki farklı yansıma"]
+    kavramlar = ["doğaüstü varlıklar", "zaman döngüsü", "klostrofobik gerilim", "paralel gerçeklik", "psikolojik dehşet"]
+    
+    mekan = random.choice(mekanlar)
+    nesne = random.choice(nesneler)
+    kavram = random.choice(kavramlar)
+    
+    return {
+        "is_series": False,
+        "tema": f"{kavram}, Odak: {nesne}",
+        "mekan": mekan,
+        "playlist_id": "",
+        "anlatici": random.choice(["erkek", "kadin"]),
+        "prompt_context": f"Mekan: {mekan}. Odak Nesne: {nesne}. Tema: {kavram}."
+    }
+
+def write_script(context):
+    prompt = (
+        f"Sen Türkçe bir YouTube kanalı için YOUTUBE SHORTS (Kısa Video) korku senaryosu yazarısın. "
+        f"Lütfen en fazla 130-150 kelime uzunluğunda, hızlı okunduğunda 45-55 saniye sürecek, "
+        f"birinci ağızdan ('ben') anlatılan vurucu bir kısa hikaye yaz.\n\n"
+        f"BAĞLAM: {context['prompt_context']}\n\n"
+        f"YAPI VE KURALLAR:\n"
+        f"1. Asla 'Merhaba', 'Kanalıma abone olun' gibi girişler yapma. Direkt olayın ortasından, şok edici bir cümleyle başla.\n"
+        f"2. Kelime israfı yapma, gerilimi çok hızlı tırmandır.\n"
+        f"3. Finali çok ani ve ürkütücü bir sonla (plot twist) bitir.\n"
+        f"4. Sadece senaryo metnini ver."
     )
-    return float(json.loads(result.stdout)["format"]["duration"])
+    return call_gemini(prompt, temperature=0.9, max_tokens=1000)
+
+def write_title(context):
+    prompt = (
+        f"Aşağıdaki konsepte uygun, YouTube Shorts için 4-6 kelimelik, çok merak uyandıran Türkçe bir korku videosu başlığı yaz.\n"
+        f"Konsept: {context['prompt_context']}\n"
+        f"Sadece başlığı ver, tırnak işareti kullanma."
+    )
+    title = call_gemini(prompt, temperature=0.8, max_tokens=150)
+    clean_title = title.replace('"', '').replace('*', '').replace("'", "").strip()
+    if clean_title.lower().startswith("başlık:"):
+        clean_title = clean_title[7:].strip()
+    return clean_title
+
+def write_description(context, title):
+    prompt = (
+        f"YouTube Shorts korku videosu için 2-3 cümlelik SEO uyumlu, izleyiciyi içine çekecek kısa bir açıklama yaz. "
+        f"Altına #shorts ve ilgili Türkçe hashtag'ler (5-6 tane) ekle. "
+        f"Sadece açıklamayı döndür.\nBaşlık: {title}\nBağlam: {context['prompt_context']}"
+    )
+    return call_gemini(prompt, temperature=0.7, max_tokens=300)
 
 def main():
-    if len(sys.argv) not in (5, 6):
-        print("Kullanım: assemble_video_shorts.py <gorsel_prefix> <ses.mp3> <cikti.mp4> <music_dir> [music_prefix]")
-        sys.exit(1)
+    context = generate_dynamic_context()
+    script = write_script(context)
+    time.sleep(15)
+    title = write_title(context)
+    time.sleep(10)
+    description = write_description(context, title)
 
-    prefix = sys.argv[1]
-    audio_path = sys.argv[2]
-    output_path = sys.argv[3]
-    music_dir = sys.argv[4]
-    
-    music_prefix = sys.argv[5] if len(sys.argv) == 6 else ""
-
-    images = sorted(glob.glob(f"{prefix}_*.jpg"))
-    
-    if not images:
-        if os.path.exists(prefix):
-            images = [prefix]
-        else:
-            print("Hiç görsel bulunamadı!")
-            sys.exit(1)
-
-    audio_duration = get_duration(audio_path)
-    fps = 30
-    N = len(images)
-    fade_dur = 1.0 # 1 saniyelik yumuşak geçiş (crossfade) süresi
-    
-    # Geçiş sürelerini hesaba katarak her görselin ekranda kalma süresini hesapla
-    # Çünkü görseller birbiri üzerine bindiğinde toplam video süresi kısalır
-    if N > 1:
-        clip_duration = (audio_duration + (N - 1) * fade_dur) / N
-    else:
-        clip_duration = audio_duration
+    with open("output/senaryo.txt", "w", encoding="utf-8") as f:
+        f.write(script)
+    with open("output/baslik.txt", "w", encoding="utf-8") as f:
+        f.write(title)
+    with open("output/aciklama.txt", "w", encoding="utf-8") as f:
+        f.write(description)
         
-    frames_per_image = int(clip_duration * fps)
-    actual_clip_duration = frames_per_image / fps # Kusursuz offset hesaplama için
-    
-    cmd = ["ffmpeg", "-y"]
-
-    for img in images:
-        cmd += ["-loop", "1", "-i", img]
-
-    cmd += ["-i", audio_path]
-
-    music_path = None
-    if os.path.exists(music_dir):
-        music_files = [f for f in os.listdir(music_dir) if f.startswith(music_prefix) and f.endswith(('.mp3','.wav'))]
-        if music_files:
-            music_path = os.path.join(music_dir, random.choice(music_files))
-            cmd += ["-stream_loop", "-1", "-i", music_path]
-
-    filter_parts = []
-    video_maps = []
-    
-    for i, img in enumerate(images):
-        # Ken Burns efekti
-        vf = f"zoompan=z='min(zoom+0.0002,1.3)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames_per_image}:s=1080x1920:fps={fps}"
-        # xfade (geçiş) filtresinin çalışması için formatın yuv420p olması zorunludur
-        filter_parts.append(f"[{i}:v]{vf},setpts=PTS-STARTPTS,format=yuv420p[v{i}]")
-        
-    # --- YENİ EKLENEN YUMUŞAK GEÇİŞ (XFADE) MANTIĞI ---
-    if N == 1:
-        filter_parts.append(f"[v0]copy[outv]")
-    else:
-        current_offset = actual_clip_duration - fade_dur
-        last_out = "v0"
-        for i in range(1, N):
-            next_out = f"f{i}" if i < N - 1 else "outv"
-            # xfade ile bir önceki görseli bir sonraki görsele yumuşakça bağla
-            filter_parts.append(f"[{last_out}][v{i}]xfade=transition=fade:duration={fade_dur}:offset={current_offset:.3f}[{next_out}]")
-            last_out = next_out
-            current_offset += (actual_clip_duration - fade_dur)
-
-    audio_idx = len(images)
-    if music_path:
-        music_idx = len(images) + 1
-        filter_parts.append(f"[{music_idx}:a]volume=0.15[music_vol]")
-        filter_parts.append(f"[music_vol][{audio_idx}:a]sidechaincompress=threshold=0.05:ratio=8:attack=20:release=400:makeup=1[music_duck]")
-        filter_parts.append(f"[{audio_idx}:a][music_duck]amix=inputs=2:duration=first:normalize=0[aout]")
-        audio_map = "[aout]"
-    else:
-        audio_map = f"{audio_idx}:a:0"
-
-    filter_complex = ";".join(filter_parts)
-
-    cmd += ["-filter_complex", filter_complex]
-    cmd += ["-map", "[outv]", "-map", audio_map]
-    cmd += ["-c:v", "libx264", "-preset", "medium", "-crf", "23"]
-    cmd += ["-c:a", "aac", "-b:a", "128k"]
-    cmd += ["-t", str(audio_duration)]
-    cmd += [output_path]
-
-    print("Çalıştırılacak komut (xfade ile):")
-    print(" ".join(cmd))
-    subprocess.run(cmd, check=True)
-    print(f"Video oluşturuldu: {output_path}")
+    tema_ciktisi = {"tema": context["tema"], "mekan": context["mekan"], "anlatici": context["anlatici"]}
+    with open("output/tema.json", "w", encoding="utf-8") as f:
+        json.dump(tema_ciktisi, f, ensure_ascii=False)
+    with open("output/playlist_id.txt", "w", encoding="utf-8") as f:
+        f.write(context.get("playlist_id", ""))
 
 if __name__ == "__main__":
     main()
