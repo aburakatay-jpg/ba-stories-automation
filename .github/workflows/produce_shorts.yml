@@ -38,7 +38,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          python scripts/generate_scripts_shorts.py
+          python scripts/generate_script_shorts.py
           
       - name: Kapak Fotoğrafı (Thumbnail) Üretimi
         run: |
