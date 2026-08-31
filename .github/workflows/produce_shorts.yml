@@ -37,7 +37,8 @@ jobs:
 
       - name: Ses Dosyası (TTS) Üretimi
         run: |
-          python scripts/generate_tts.py
+          python scripts/generate_tts.py output/senaryo.txt output/ses.mp3
+
 
       # --- VİDEO BİRLEŞTİRME VE YÜKLEME ADIMLARI ---
       # (Mevcut sistemindeki video kurgu ve YouTube upload scriptlerini buraya ekle)
