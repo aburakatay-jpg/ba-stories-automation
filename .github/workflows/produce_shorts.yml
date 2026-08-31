@@ -18,12 +18,23 @@ jobs:
         with:
           python-version: '3.11'
 
+      # Videoların arka planda hatasız birleşebilmesi için Linux sunucusuna FFmpeg kuruyoruz
+      - name: Sistem Gereksinimlerini Yükle (FFmpeg)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
       - name: Gerekli Kütüphaneleri Yükle
         run: |
           python -m pip install --upgrade pip
           pip install requests edge-tts urllib3
-          # Varsa depondaki requirements.txt dosyasını yükler
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      # Hata vermemesi için çıktı ve müzik klasörlerini baştan zorla oluşturuyoruz
+      - name: Klasörleri Hazırla
+        run: |
+          mkdir -p output
+          mkdir -p assets/music
 
       - name: Senaryo ve Başlık Üretimi
         env:
@@ -39,26 +50,24 @@ jobs:
         run: |
           python scripts/generate_tts.py output/senaryo.txt output/ses.mp3
 
-      # --- EKSİK OLAN VİDEO OLUŞTURMA VE YÜKLEME ADIMLARI EKLENDİ ---
       - name: Sahne Görsellerini Üret
-          
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python scripts/generate_scene_images.py output/tema.json output/baslik.txt output/senaryo.txt output
 
-
+      # İstenen tüm parametreler eklendi: <gorsel_prefix> <ses> <cikti> <music_dir>
       - name: Videoyu Birleştir
         run: |
-          python scripts/assemble_video_shorts.py
+          python scripts/assemble_video_shorts.py output/scene output/ses.mp3 output/final_video.mp4 assets/music
 
+      # Bir sonraki adımda hata vermemesi için YouTube yükleyiciye standart argümanlar eklendi
       - name: YouTube'a Yükle
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: |
-          python scripts/upload_youtube.py
+          python scripts/upload_youtube.py output/final_video.mp4 output/baslik.txt output/aciklama.txt
 
-      # --- TELEGRAM BİLDİRİMİ ---
       - name: Başarılı Üretim Telegram Bildirimi
         if: success()
         env:
