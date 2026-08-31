@@ -22,7 +22,7 @@ def clean_ai_text(text):
             cleaned.append(line.replace('*', '').replace('"', '').replace('#', ''))
     return "\n".join(cleaned).strip()
 
-def call_gemini(prompt, temperature=0.9, max_tokens=4000, max_retries=5):
+def call_gemini(prompt, temperature=0.9, max_tokens=4000, max_retries=6):
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("GEMINI_API_KEY bulunamadı!")
@@ -43,6 +43,7 @@ def call_gemini(prompt, temperature=0.9, max_tokens=4000, max_retries=5):
             timeout=120,
         )
         if resp.status_code in [429, 503]:
+            print(f"⏳ API yoğun (Hata {resp.status_code}). 60 saniye bekleniyor... (Deneme {attempt+1}/{max_retries})")
             time.sleep(60)
             continue
         if not resp.ok:
@@ -50,17 +51,15 @@ def call_gemini(prompt, temperature=0.9, max_tokens=4000, max_retries=5):
         
         data = resp.json()
         if "candidates" not in data or not data["candidates"]:
-            print(f"DEBUG: Gelen cevapta candidate yok: {data}")
             raise RuntimeError("API cevabında candidate bulunamadı.")
             
         candidate = data["candidates"][0]
         if "content" not in candidate or "parts" not in candidate["content"]:
-            print(f"DEBUG: İçerik yapısı hatalı: {candidate}")
             raise RuntimeError("API cevabında content veya parts bulunamadı.")
 
         raw_text = candidate["content"]["parts"][0].get("text", "")
         return clean_ai_text(raw_text)
-    raise RuntimeError("Gemini API'ye ulaşılamadı")
+    raise RuntimeError("Gemini API'ye ulaşılamadı. Lütfen bekleyip tekrar deneyin.")
 
 def get_series_info():
     seri_path = os.path.join(os.path.dirname(__file__), "seri_bilgisi.json")
@@ -110,11 +109,9 @@ def generate_dynamic_context():
         nesne = random.choice(nesneler)
         kavram = random.choice(kavramlar)
         
-        tema_adi = f"{kavram}, Odak: {nesne}"
-        
         return {
             "is_series": False,
-            "tema": tema_adi,
+            "tema": f"{kavram}, Odak: {nesne}",
             "mekan": mekan,
             "playlist_id": "",
             "anlatici": random.choice(["erkek", "kadin"]),
@@ -130,8 +127,8 @@ def write_script(context):
         f"YAPI VE KURALLAR:\n"
         f"1. GİRİŞ: Direkt hikayeye başla. Karakterin yalnızlığını ve mekanı detaylı tasvir et.\n"
         f"2. GELİŞME: Olayları yavaş yavaş tırmandır, gizemi derinleştir.\n"
-        f"3. FİNAL (ÇOK ÖNEMLİ): Hikayeyi ASLA yarım veya açık uçlu bırakma. Karakterin başına gelenleri, yüzleştiği dehşeti net ve sarsıcı bir sonla tamamen bağla.\n"
-        f"4. Sadece senaryo metnini ver, başka hiçbir açıklama yazma."
+        f"3. FİNAL: Hikayeyi ASLA yarım bırakma. Net bir sonla bağla.\n"
+        f"4. Sadece senaryo metnini ver."
     )
     return call_gemini(prompt, temperature=0.9, max_tokens=4000)
 
@@ -139,35 +136,30 @@ def write_title(context):
     prompt = (
         f"Aşağıdaki konsepte uygun, YouTube için 5-8 kelimelik, ilgi çekici bir korku videosu başlığı yaz.\n"
         f"Konsept: {context['prompt_context']}\n"
-        f"Lütfen sadece başlığı ver, ekstra hiçbir açıklama veya tırnak işareti ekleme."
+        f"Sadece başlığı ver."
     )
     title = call_gemini(prompt, temperature=0.8, max_tokens=150)
-    
     clean_title = title.replace('"', '').replace('*', '').replace("'", "").strip()
     if clean_title.lower().startswith("başlık:"):
         clean_title = clean_title[7:].strip()
     
     if context["is_series"]:
         return f"{clean_title} | {context['tema']} #{context['bolum_no']}"
-    
     return clean_title
 
 def write_description(context, title):
     prompt = (
         f"YouTube korku videosu için SEO uyumlu bir açıklama yaz. "
-        f"İlk paragraf merak uyandıran bir özet olsun. Altına ilgili Türkçe hashtag'ler ekle. "
         f"Sadece açıklamayı döndür.\nBaşlık: {title}\nBağlam: {context['prompt_context']}"
     )
     return call_gemini(prompt, temperature=0.7, max_tokens=400)
 
 def main():
     context = generate_dynamic_context()
-    print(f"Senaryo üretiliyor... (Tema: {context['tema']})")
-    
     script = write_script(context)
-    time.sleep(2)
+    time.sleep(20)
     title = write_title(context)
-    time.sleep(2)
+    time.sleep(15)
     description = write_description(context, title)
 
     with open("output/senaryo.txt", "w", encoding="utf-8") as f:
@@ -177,19 +169,11 @@ def main():
     with open("output/aciklama.txt", "w", encoding="utf-8") as f:
         f.write(description)
         
-    tema_ciktisi = {
-        "tema": context["tema"], 
-        "mekan": context["mekan"],
-        "anlatici": context["anlatici"]
-    }
+    tema_ciktisi = {"tema": context["tema"], "mekan": context["mekan"], "anlatici": context["anlatici"]}
     with open("output/tema.json", "w", encoding="utf-8") as f:
         json.dump(tema_ciktisi, f, ensure_ascii=False)
-        
     with open("output/playlist_id.txt", "w", encoding="utf-8") as f:
         f.write(context.get("playlist_id", ""))
 
-    print(f"✅ Üretim tamamlandı (Uzun Video). Uzunluk: {len(script)} karakter. Başlık: '{title}'")
-
 if __name__ == "__main__":
     main()
-
