@@ -2,9 +2,8 @@ name: BA Stories - Shorts Üretim
 
 on:
   schedule:
-    # TSİ 18:00 (UTC 15:00) - Pazar, Pazartesi, Çarşamba, Perşembe, Cumartesi
     - cron: '0 15 * * 0,1,3,4,6'
-  workflow_dispatch: # Manuel "Run workflow" butonunu aktif eden komut
+  workflow_dispatch:
 
 jobs:
   produce-shorts:
@@ -23,7 +22,8 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install requests edge-tts urllib3
-          # Varsa kendi gereksinim dosyanı (pip install -r requirements.txt) buraya ekleyebilirsin.
+          # Varsa depondaki requirements.txt dosyasını yükler
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Senaryo ve Başlık Üretimi
         env:
@@ -39,30 +39,36 @@ jobs:
         run: |
           python scripts/generate_tts.py output/senaryo.txt output/ses.mp3
 
+      # --- EKSİK OLAN VİDEO OLUŞTURMA VE YÜKLEME ADIMLARI EKLENDİ ---
+      - name: Sahne Görsellerini Üret
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python scripts/generate_scene_images.py
 
-      # --- VİDEO BİRLEŞTİRME VE YÜKLEME ADIMLARI ---
-      # (Mevcut sistemindeki video kurgu ve YouTube upload scriptlerini buraya ekle)
-      # Örnek:
-      # - name: Videoyu Birleştir
-      #   run: python scripts/build_video.py
-      # - name: YouTube'a Yükle
-      #   run: python scripts/upload_youtube.py
+      - name: Videoyu Birleştir
+        run: |
+          python scripts/assemble_video_shorts.py
 
-      # --- BİLDİRİM ADIMI ---
+      - name: YouTube'a Yükle
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: |
+          python scripts/upload_youtube.py
+
+      # --- TELEGRAM BİLDİRİMİ ---
       - name: Başarılı Üretim Telegram Bildirimi
         if: success()
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          # Başlık dosyasını güvenli bir şekilde oku
           if [ -f "output/baslik.txt" ]; then
             BASLIK=$(cat output/baslik.txt)
           else
             BASLIK="Yeni Shorts Videosu"
           fi
           
-          # Telegram API'sine mesajı gönder
           curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
           -d chat_id="${TELEGRAM_CHAT_ID}" \
-          -d text="✅ BA Hikayeleri: Yeni Shorts Videosu Başarıyla Üretildi! 🚀%0A%0ABaşlık: ${BASLIK}"
+          -d text="✅ BA Hikayeleri: Yeni Shorts Videosu Başarıyla Üretildi ve Yüklendi! 🚀%0A%0ABaşlık: ${BASLIK}"
