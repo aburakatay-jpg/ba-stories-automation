@@ -18,7 +18,6 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Videoların arka planda hatasız birleşebilmesi için Linux sunucusuna FFmpeg kuruyoruz
       - name: Sistem Gereksinimlerini Yükle (FFmpeg)
         run: |
           sudo apt-get update
@@ -27,10 +26,10 @@ jobs:
       - name: Gerekli Kütüphaneleri Yükle
         run: |
           python -m pip install --upgrade pip
-          pip install requests edge-tts urllib3
+          # Tüm eksik kütüphaneler (YouTube dahil) buraya eklendi
+          pip install requests edge-tts urllib3 google-api-python-client google-auth-httplib2 google-auth-oauthlib
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      # Hata vermemesi için çıktı ve müzik klasörlerini baştan zorla oluşturuyoruz
       - name: Klasörleri Hazırla
         run: |
           mkdir -p output
@@ -56,12 +55,10 @@ jobs:
         run: |
           python scripts/generate_scene_images.py output/tema.json output/baslik.txt output/senaryo.txt output
 
-      # İstenen tüm parametreler eklendi: <gorsel_prefix> <ses> <cikti> <music_dir>
       - name: Videoyu Birleştir
         run: |
           python scripts/assemble_video_shorts.py output/scene output/ses.mp3 output/final_video.mp4 assets/music
 
-      # Bir sonraki adımda hata vermemesi için YouTube yükleyiciye standart argümanlar eklendi
       - name: YouTube'a Yükle
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
