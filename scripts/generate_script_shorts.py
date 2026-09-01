@@ -8,7 +8,7 @@ import requests
 os.makedirs("output", exist_ok=True)
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent"
 
-def call_gemini_json(prompt, max_retries=5):
+def call_gemini(prompt, max_retries=5):
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("GEMINI_API_KEY bulunamadı!")
@@ -17,8 +17,7 @@ def call_gemini_json(prompt, max_retries=5):
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
             "temperature": 0.8,
-            "maxOutputTokens": 2048,
-            "responseMimeType": "application/json"
+            "maxOutputTokens": 2048
         }
     }
 
@@ -31,11 +30,10 @@ def call_gemini_json(prompt, max_retries=5):
             raise RuntimeError(f"Gemini API hatası: {resp.status_code} - {resp.text}")
         
         data = resp.json()
-        raw_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
         try:
-            return json.loads(raw_text)
+            return data["candidates"][0]["content"]["parts"][0]["text"].strip()
         except Exception:
-            raise RuntimeError(f"JSON parse edilemedi: {raw_text}")
+            raise RuntimeError("API yanıtı okunamadı.")
             
     raise RuntimeError("Gemini API'ye ulaşılamadı.")
 
@@ -62,29 +60,48 @@ def generate_dynamic_context():
         "prompt_context": f"Mekan: {mekan}. Odak Nesne: {nesne}. Olay: {kavram}."
     }
 
+def parse_response(raw_text):
+    baslik = "Karanlığın İçindeki Ses"
+    senaryo = ""
+    aciklama = "Karanlık bir hikaye... #shorts #korku #hikaye"
+
+    if "===BASLIK===" in raw_text and "===SENARYO===" in raw_text:
+        parts = raw_text.split("===BASLIK===")[1]
+        baslik_part, rest = parts.split("===SENARYO===")
+        baslik = baslik_part.strip().replace('"', '').replace('*', '')
+
+        if "===ACIKLAMA===" in rest:
+            senaryo_part, aciklama_part = rest.split("===ACIKLAMA===")
+            senaryo = senaryo_part.strip()
+            aciklama = aciklama_part.strip()
+        else:
+            senaryo = rest.strip()
+    else:
+        senaryo = raw_text.strip()
+
+    # Senaryoyu tek bir akıcı metin haline getir
+    lines = [l.strip() for l in senaryo.split('\n') if l.strip()]
+    senaryo = " ".join(lines).replace('"', '').replace('*', '')
+
+    return baslik, senaryo, aciklama
+
 def main():
     context = generate_dynamic_context()
     
     prompt = (
-        f"Sen Türkçe YouTube Shorts korku kanalı için içerik üreten profesyonel bir yazarsın.\n"
+        f"Sen Türkçe YouTube Shorts korku kanalı için seslendirme metni ve başlık yazan profesyonel bir yazarsın.\n"
         f"KONU: {context['prompt_context']}\n\n"
-        f"Şu JSON formatında çıktı ver:\n"
-        f"{{\n"
-        f'  "baslik": "YouTube Shorts için 3-5 kelimelik çok merak uyandırıcı Türkçe başlık",\n'
-        f'  "senaryo": "Giriş, gelişme ve çarpıcı bir final içeren, birinci ağızdan anlatılan tam 140-160 kelimelik korku hikayesi. Asla selamlama veya parantez içi efekt yazma.",\n'
-        f'  "aciklama": "2 cümlelik video açıklaması ve ardından #shorts #korku #hikaye etiketleri"\n'
-        f"}}"
+        f"Lütfen yanıtını AYNEN aşağıdaki etiketleri kullanarak formatla:\n\n"
+        f"===BASLIK===\n"
+        f"3-5 kelimelik çok çarpıcı Türkçe korku başlığı\n"
+        f"===SENARYO===\n"
+        f"Giriş, gelişme ve korkunç bir son içeren, birinci ağızdan anlatılan tam 140-160 kelimelik akıcı korku hikayesi. Hiçbir selamlama veya parantez içi efekt yazma.\n"
+        f"===ACIKLAMA===\n"
+        f"2 cümlelik video açıklaması ve ardından #shorts #korku #hikaye etiketleri\n"
     )
 
-    result = call_gemini_json(prompt)
-    
-    baslik = result.get("baslik", "Gece Yarısı Gelen Ses").strip().replace('"', '')
-    senaryo = result.get("senaryo", "").strip().replace('"', '')
-    aciklama = result.get("aciklama", "").strip()
-
-    # Kelime kontrolü: Eğer model kısa kestiyse acil durum uzatması
-    if len(senaryo.split()) < 100:
-        senaryo += " Adımlarım beni o karanlığın en derin yerine çekerken artık geri dönüşün olmadığını çok iyi biliyordum. Arkama baktığımda gördüğüm şey ise sadece sonsuz bir boşluktan ibaretti."
+    raw_text = call_gemini(prompt)
+    baslik, senaryo, aciklama = parse_response(raw_text)
 
     with open("output/senaryo.txt", "w", encoding="utf-8") as f:
         f.write(senaryo)
@@ -106,7 +123,7 @@ def main():
     with open("output/playlist_id.txt", "w", encoding="utf-8") as f:
         f.write(context.get("playlist_id", ""))
 
-    print(f"✅ Üretim Tamamlandı -> Başlık: {baslik} | Senaryo: {len(senaryo.split())} kelime")
+    print(f"✅ Üretim Başarılı -> Başlık: {baslik} | Senaryo: {len(senaryo.split())} kelime")
 
 if __name__ == "__main__":
     main()
