@@ -79,32 +79,60 @@ def parse_response(raw_text):
     else:
         senaryo = raw_text.strip()
 
-    # Senaryoyu tek bir akıcı metin haline getir
     lines = [l.strip() for l in senaryo.split('\n') if l.strip()]
     senaryo = " ".join(lines).replace('"', '').replace('*', '')
 
     return baslik, senaryo, aciklama
 
+def ensure_script_length(senaryo, context):
+    """Senaryonun en az 115 kelime (45-50 saniye TTS) olmasını garanti eder."""
+    word_count = len(senaryo.split())
+    if word_count >= 115:
+        return senaryo
+
+    print(f"⚠️ Senaryo kısa kaldı ({word_count} kelime). Genişletiliyor...")
+    expand_prompt = (
+        f"Aşağıdaki YouTube Shorts korku senaryosu çok kısa ve seslendirmesi 20 saniyede bitiyor. "
+        f"Lütfen hikayenin atmosferini, duyulan sesleri, karakterin korkusunu ve detayları artırarak "
+        f"bu hikayeyi EN AZ 120-140 KELİME olacak şekilde baştan sona tek parça olarak tekrar yaz.\n\n"
+        f"Mevcut Metin:\n{senaryo}\n\n"
+        f"KURAL: Sadece genişletilmiş hikaye metnini ver. Başlık veya açıklama yazma."
+    )
+    expanded = call_gemini(expand_prompt)
+    expanded_lines = [l.strip() for l in expanded.split('\n') if l.strip()]
+    cleaned_expanded = " ".join(expanded_lines).replace('"', '').replace('*', '')
+    
+    # Model genişletmeye rağmen kısa keserse yedek detay cümlesi ekle
+    if len(cleaned_expanded.split()) < 115:
+        cleaned_expanded += " Kalp atışlarım kulaklarımda yankılanırken o karanlık odanın kapısı yavaşça gıcırdadı. Geriye doğru bir adım atmak istedim ama ayaklarım yere çivilenmiş gibiydi. Arkamda hissettiğim o soğuk nefes, buranın artık benim mezarım olduğunu fısıldıyordu."
+        
+    return cleaned_expanded
+
 def main():
     context = generate_dynamic_context()
     
     prompt = (
-        f"Sen Türkçe YouTube Shorts korku kanalı için seslendirme metni ve başlık yazan profesyonel bir yazarsın.\n"
+        f"Sen Türkçe YouTube Shorts korku kanalı için seslendirme metni yazan profesyonel bir yazarsın.\n"
         f"KONU: {context['prompt_context']}\n\n"
-        f"Lütfen yanıtını AYNEN aşağıdaki etiketleri kullanarak formatla:\n\n"
+        f"ÖNEMLİ KURAL: Senaryo seslendirildiğinde tam 45-50 saniye sürmelidir. Bu yüzden hikaye EN AZ 3 paragraf ve 120-140 kelime uzunluğunda olmalıdır. Kısa ve özet metinler geçersizdir.\n\n"
+        f"Lütfen yanıtını AYNEN aşağıdaki etiketlerle formatla:\n\n"
         f"===BASLIK===\n"
-        f"3-5 kelimelik çok çarpıcı Türkçe korku başlığı\n"
+        f"3-5 kelimelik çarpıcı Türkçe başlık\n"
         f"===SENARYO===\n"
-        f"Giriş, gelişme ve korkunç bir son içeren, birinci ağızdan anlatılan tam 140-160 kelimelik akıcı korku hikayesi. Hiçbir selamlama veya parantez içi efekt yazma.\n"
+        f"Detaylı, gerilimli, birinci ağızdan anlatılan tam 120-140 kelimelik hikaye metni.\n"
         f"===ACIKLAMA===\n"
-        f"2 cümlelik video açıklaması ve ardından #shorts #korku #hikaye etiketleri\n"
+        f"Kısa video açıklaması ve #shorts #korku #hikaye etiketleri\n"
     )
 
     raw_text = call_gemini(prompt)
     baslik, senaryo, aciklama = parse_response(raw_text)
 
+    # Süre / kelime sayısı kontrolü
+    final_senaryo = ensure_script_length(senaryo, context)
+    total_words = len(final_senaryo.split())
+
     with open("output/senaryo.txt", "w", encoding="utf-8") as f:
-        f.write(senaryo)
+        f.write(final_senaryo)
         
     with open("output/baslik.txt", "w", encoding="utf-8") as f:
         f.write(baslik)
@@ -123,7 +151,7 @@ def main():
     with open("output/playlist_id.txt", "w", encoding="utf-8") as f:
         f.write(context.get("playlist_id", ""))
 
-    print(f"✅ Üretim Başarılı -> Başlık: {baslik} | Senaryo: {len(senaryo.split())} kelime")
+    print(f"✅ Senaryo tamamlandı: {total_words} kelime (Tahmini TTS süresi: {total_words/2.5:.1f} sn) | Başlık: {baslik}")
 
 if __name__ == "__main__":
     main()
