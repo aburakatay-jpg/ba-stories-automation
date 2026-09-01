@@ -8,8 +8,6 @@ import requests
 os.makedirs("output", exist_ok=True)
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent"
 
-
-
 def clean_ai_text(text):
     lines = text.split('\n')
     cleaned = []
@@ -99,12 +97,18 @@ def write_title(context):
     prompt = (
         f"Aşağıdaki konsepte uygun, YouTube Shorts için 4-6 kelimelik, çok merak uyandıran Türkçe bir korku videosu başlığı yaz.\n"
         f"Konsept: {context['prompt_context']}\n"
-        f"Sadece başlığı ver, tırnak işareti kullanma."
     )
     title = call_gemini(prompt, temperature=0.8, max_tokens=150)
     clean_title = title.replace('"', '').replace('*', '').replace("'", "").strip()
-    if clean_title.lower().startswith("başlık:"):
-        clean_title = clean_title[7:].strip()
+    
+    # Yapay zekanın başlığa sızdırdığı kelimeleri temizleme filtresi
+    for prefix in ["Başlık:", "Sadece başlığı ver", "Sadece başlığı ver,", "İşte başlık:", "Sadece başlık:"]:
+        if clean_title.lower().startswith(prefix.lower()):
+            clean_title = clean_title[len(prefix):].strip()
+            
+    if not clean_title or len(clean_title) < 3:
+         clean_title = "Karanlık Sırlar"
+         
     return clean_title
 
 def write_description(context, title):
