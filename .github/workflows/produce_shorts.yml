@@ -11,10 +11,10 @@ jobs:
 
     steps:
       - name: Depoyu Klonla
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Python Ortamını Kur
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -60,19 +60,16 @@ jobs:
 
       - name: YouTube'a Yükle
         env:
-          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
         run: |
           python scripts/upload_youtube.py output/final_video.mp4 output/baslik.txt output/aciklama.txt output/thumbnail.jpg output/playlist_id.txt
 
-
-
       - name: Başarılı Üretim Telegram Bildirimi
         if: success()
         env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           if [ -f "output/baslik.txt" ]; then
@@ -81,6 +78,6 @@ jobs:
             BASLIK="Yeni Shorts Videosu"
           fi
           
-          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
           -d chat_id="${TELEGRAM_CHAT_ID}" \
           -d text="✅ BA Hikayeleri: Yeni Shorts Videosu Başarıyla Üretildi ve Yüklendi! 🚀%0A%0ABaşlık: ${BASLIK}"
