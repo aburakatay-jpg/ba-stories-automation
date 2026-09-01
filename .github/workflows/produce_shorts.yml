@@ -62,7 +62,8 @@ jobs:
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: |
-          python scripts/upload_youtube.py output/final_video.mp4 output/baslik.txt output/aciklama.txt
+          python scripts/upload_youtube.py output/final_video.mp4 output/baslik.txt output/aciklama.txt output/thumbnail.jpg output/playlist_id.txt
+
 
       - name: Başarılı Üretim Telegram Bildirimi
         if: success()
