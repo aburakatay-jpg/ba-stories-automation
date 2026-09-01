@@ -20,7 +20,7 @@ def get_audio_duration(audio_path):
 
 def main():
     if len(sys.argv) < 5:
-        print("Kullanım: assemble_video_shorts.py <gorsel_prefix> <ses.mp3> <cikti.mp4> <music_dir> [music_prefix]")
+        print("Kullanım: assemble_video_shorts.py <gorsel_prefix> <ses.mp3> <cikti.mp4> <music_dir>")
         sys.exit(1)
 
     gorsel_prefix = sys.argv[1]
@@ -41,6 +41,7 @@ def main():
         print("Hata: Ses dosyasının süresi hesaplanamadı.")
         sys.exit(1)
 
+    # Görsellerin ekranda kalma süresini net hesapla
     duration_per_image = audio_duration / len(images)
 
     concat_file = "output/concat_list.txt"
@@ -49,6 +50,7 @@ def main():
             safe_path = os.path.abspath(img).replace("\\", "/")
             f.write(f"file '{safe_path}'\n")
             f.write(f"duration {duration_per_image:.3f}\n")
+        # FFmpeg concat demuxer hatasını önlemek için son dosyayı süresiz tekrar yaz
         safe_last_path = os.path.abspath(images[-1]).replace("\\", "/")
         f.write(f"file '{safe_last_path}'\n")
 
@@ -65,7 +67,7 @@ def main():
     ]
 
     if bgm_path:
-        # Müzik kısa kalmasın diye sonsuz döngüye (-stream_loop -1) alıyoruz
+        # BGM'yi sonsuz döngüye al
         cmd.extend(["-stream_loop", "-1", "-i", bgm_path])
         filter_complex = (
             "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[v];"
@@ -78,14 +80,15 @@ def main():
         filter_complex = "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[v]"
         cmd.extend(["-filter_complex", filter_complex, "-map", "[v]", "-map", "1:a"])
 
+    # Videonun süresini (-t) hesaplanan ses uzunluğuna KESİN olarak eşitliyoruz
     cmd.extend([
         "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "192k",
-        "-shortest",
+        "-t", str(audio_duration), 
         cikti_path
     ])
 
-    print("🎥 Video sahneleri, ses ve müzik birleştiriliyor...")
+    print(f"🎥 Video {audio_duration:.2f} saniye uzunluğunda birleştiriliyor...")
     subprocess.run(cmd, check=True)
     print(f"✅ Video başarıyla oluşturuldu: {cikti_path}")
 
