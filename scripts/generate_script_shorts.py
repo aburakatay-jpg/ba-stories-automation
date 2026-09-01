@@ -6,7 +6,8 @@ import time
 import requests
 
 os.makedirs("output", exist_ok=True)
-API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent"
+
 
 def clean_ai_text(text):
     text = text.replace('"', '').replace('*', '').replace('#', '').strip()
