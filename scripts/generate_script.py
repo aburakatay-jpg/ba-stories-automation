@@ -8,174 +8,148 @@ import requests
 os.makedirs("output", exist_ok=True)
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent"
 
-
-
-def clean_ai_text(text):
-    lines = text.split('\n')
-    cleaned = []
-    for line in lines:
-        line = line.strip()
-        lower_line = line.lower()
-        if lower_line.startswith(("işte", "tabii", "senaryo:", "başlık:", "tamam", "elbette", "uzun senaryo")):
-            continue
-        if line.startswith("```"):
-            continue
-        if line:
-            cleaned.append(line.replace('*', '').replace('"', '').replace('#', ''))
-    return "\n".join(cleaned).strip()
-
-def call_gemini(prompt, temperature=0.9, max_tokens=4000, max_retries=6):
+def call_gemini(prompt, temperature=0.8, max_tokens=4096, max_retries=5):
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("GEMINI_API_KEY bulunamadı!")
         
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": temperature,
+            "maxOutputTokens": max_tokens
+        }
+    }
+
     for attempt in range(max_retries):
-        resp = requests.post(
-            f"{API_URL}?key={api_key}",
-            json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens},
-                "safetySettings": [
-                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-                ]
-            },
-            timeout=120,
-        )
+        resp = requests.post(f"{API_URL}?key={api_key}", json=payload, timeout=180)
         if resp.status_code in [429, 503]:
-            print(f"⏳ API yoğun (Hata {resp.status_code}). 60 saniye bekleniyor... (Deneme {attempt+1}/{max_retries})")
-            time.sleep(60)
+            time.sleep(30)
             continue
         if not resp.ok:
             raise RuntimeError(f"Gemini API hatası: {resp.status_code} - {resp.text}")
         
         data = resp.json()
-        if "candidates" not in data or not data["candidates"]:
-            raise RuntimeError("API cevabında candidate bulunamadı.")
+        try:
+            return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        except Exception:
+            raise RuntimeError("API geçerli bir metin döndürmedi.")
             
-        candidate = data["candidates"][0]
-        if "content" not in candidate or "parts" not in candidate["content"]:
-            raise RuntimeError("API cevabında content veya parts bulunamadı.")
-
-        raw_text = candidate["content"]["parts"][0].get("text", "")
-        return clean_ai_text(raw_text)
-    raise RuntimeError("Gemini API'ye ulaşılamadı. Lütfen bekleyip tekrar deneyin.")
-
-def get_series_info():
-    seri_path = os.path.join(os.path.dirname(__file__), "seri_bilgisi.json")
-    if not os.path.exists(seri_path):
-        default_series = {
-            "karanlik_arsivler": {"ad": "Karanlık Arşivler", "mekan": "Terk Edilmiş Devlet Arşivi", "sayac": 0},
-            "deniz_feneri": {"ad": "Yalnız Fener", "mekan": "Okyanus Ortasında Bir Deniz Feneri", "sayac": 0},
-            "kayip_kasetler": {"ad": "Kayıp Kasetler", "mekan": "Eski Bir Radyo İstasyonu", "sayac": 0}
-        }
-        with open(seri_path, "w", encoding="utf-8") as f:
-            json.dump(default_series, f, ensure_ascii=False, indent=2)
-        return default_series, seri_path
-    
-    with open(seri_path, "r", encoding="utf-8") as f:
-        return json.load(f), seri_path
+    raise RuntimeError("Gemini API'ye ulaşılamadı.")
 
 def generate_dynamic_context():
-    series_data, seri_path = get_series_info()
+    mekanlar = [
+        "Anadolu'da terk edilmiş dağ köyü",
+        "Karadeniz yaylasında sisli bir orman evi",
+        "Eski bir Osmanlı hanı kalıntısı",
+        "Kapanmış bir linyit madeni ocağı",
+        "Gece yarısı tenha bir taşra tren istasyonu"
+    ]
+    nesneler = ["üzeri mühürlü eski sandık", "kayıp bir günlük", "antika cep saati", "eski aile fotoğrafı"]
+    kavramlar = ["eski lanetler", "cin ve doğaüstü varlık rivayetleri", "köye çöken tekinsiz sis", "unutulmuş sırlar"]
     
-    if random.random() < 0.30:
-        secilen_seri_key = random.choice(list(series_data.keys()))
-        series_data[secilen_seri_key]["sayac"] += 1
-        
-        with open(seri_path, "w", encoding="utf-8") as f:
-            json.dump(series_data, f, ensure_ascii=False, indent=2)
-            
-        ad = series_data[secilen_seri_key].get("ad", "Gizemli Hikaye")
-        bolum = series_data[secilen_seri_key].get("sayac", 1)
-        mekan = series_data[secilen_seri_key].get("mekan", "Karanlık ve tekinsiz bir yer")
-        playlist_id = series_data[secilen_seri_key].get("playlist_id", "")
-        
-        return {
-            "is_series": True,
-            "tema": ad,
-            "mekan": mekan,
-            "bolum_no": bolum,
-            "playlist_id": playlist_id,
-            "anlatici": random.choice(["erkek", "kadin"]),
-            "prompt_context": f"Bu hikaye '{ad}' isimli korku serisinin {bolum}. bölümüdür. Ana karakterimiz bu serinin odak kişisidir."
-        }
+    mekan = random.choice(mekanlar)
+    nesne = random.choice(nesneler)
+    kavram = random.choice(kavramlar)
+    
+    return {
+        "tema": f"{kavram}, Odak: {nesne}",
+        "mekan": mekan,
+        "playlist_id": "",
+        "anlatici": "erkek",
+        "prompt_context": f"Mekan: {mekan}. Odak Nesne: {nesne}. Olay/Tema: {kavram}."
+    }
+
+def parse_long_response(raw_text):
+    baslik = ""
+    senaryo = ""
+    aciklama = ""
+
+    if "===BASLIK===" in raw_text and "===SENARYO===" in raw_text:
+        parts = raw_text.split("===BASLIK===")[1]
+        baslik_part, rest = parts.split("===SENARYO===")
+        baslik = baslik_part.strip()
+
+        if "===ACIKLAMA===" in rest:
+            senaryo_part, aciklama_part = rest.split("===ACIKLAMA===")
+            senaryo = senaryo_part.strip()
+            aciklama = aciklama_part.strip()
+        else:
+            senaryo = rest.strip()
     else:
-        mekanlar = ["ıssız bir kargo gemisi", "karlar altında kalmış bir dağ oteli", "eski bir akıl hastanesi kalıntısı", "gece yarısı boş bir otoyol dinlenme tesisi", "derin bir orman kulübesi", "terk edilmiş bir lunapark"]
-        nesneler = ["isimsiz bir kaset", "gece yarısı çalan ankesörlü telefon", "duvardaki tuhaf çizimler", "eski bir telsizden gelen yardım çağrısı", "kendiliğinden açılan güvenlik kameraları"]
-        kavramlar = ["psikolojik çöküş ve izolasyon", "doğaüstü varlıklar", "açıklanamayan zaman kaymaları", "klostrofobik gerilim", "paralel gerçeklik"]
+        # Etiketler gelmediyse temiz ayıkla
+        lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
+        if lines:
+            baslik = lines[0]
+            senaryo = "\n\n".join(lines[1:])
+        else:
+            baslik = "Anadolu'da Yaşanan Gizemli Gece"
+            senaryo = raw_text.strip()
+
+    # Başlık temizliği (Tırnak, yıldız, parantez artıklarını kaldır)
+    baslik = baslik.replace('"', '').replace('*', '').replace('#', '').strip()
+    baslik_lines = [l.strip() for l in baslik.split('\n') if l.strip()]
+    if baslik_lines:
+        baslik = baslik_lines[0]
         
-        mekan = random.choice(mekanlar)
-        nesne = random.choice(nesneler)
-        kavram = random.choice(kavramlar)
-        
-        return {
-            "is_series": False,
-            "tema": f"{kavram}, Odak: {nesne}",
-            "mekan": mekan,
-            "playlist_id": "",
-            "anlatici": random.choice(["erkek", "kadin"]),
-            "prompt_context": f"Mekan: {mekan}. Odak Nesne: {nesne}. Tema: {kavram}."
-        }
+    for prefix in ["Başlık:", "İşte Başlık:", "Video Başlığı:"]:
+        if baslik.lower().startswith(prefix.lower()):
+            baslik = baslik[len(prefix):].strip()
 
-def write_script(context):
-    prompt = (
-        f"Sen Türkçe bir korku YouTube kanalı için senaryo yazarısın. "
-        f"Lütfen en az 1000 - 1200 kelime uzunluğunda, atmosferi ilmek ilmek işleyen, "
-        f"birinci ağızdan ('ben') anlatılan gerçekçi bir olay yaz.\n\n"
-        f"BAĞLAM: {context['prompt_context']}\n\n"
-        f"YAPI VE KURALLAR:\n"
-        f"1. GİRİŞ: Direkt hikayeye başla. Karakterin yalnızlığını ve mekanı detaylı tasvir et.\n"
-        f"2. GELİŞME: Olayları yavaş yavaş tırmandır, gizemi derinleştir.\n"
-        f"3. FİNAL: Hikayeyi ASLA yarım bırakma. Net bir sonla bağla.\n"
-        f"4. Sadece senaryo metnini ver."
-    )
-    return call_gemini(prompt, temperature=0.9, max_tokens=4000)
+    # Eğer model yine 'Iss' gibi anlamsız 5 karakterden kısa bir şey verirse kurtar
+    if len(baslik) < 8:
+        baslik = "Karanlık Köyün Derinliklerinde Yaşanan Korkunç Olay"
 
-def write_title(context):
-    prompt = (
-        f"Aşağıdaki konsepte uygun, YouTube için 5-8 kelimelik, ilgi çekici bir korku videosu başlığı yaz.\n"
-        f"Konsept: {context['prompt_context']}\n"
-        f"Sadece başlığı ver."
-    )
-    title = call_gemini(prompt, temperature=0.8, max_tokens=150)
-    clean_title = title.replace('"', '').replace('*', '').replace("'", "").strip()
-    if clean_title.lower().startswith("başlık:"):
-        clean_title = clean_title[7:].strip()
-    
-    if context["is_series"]:
-        return f"{clean_title} | {context['tema']} #{context['bolum_no']}"
-    return clean_title
+    # Senaryo temizliği
+    senaryo = senaryo.replace('*', '').strip()
 
-def write_description(context, title):
-    prompt = (
-        f"YouTube korku videosu için SEO uyumlu bir açıklama yaz. "
-        f"Sadece açıklamayı döndür.\nBaşlık: {title}\nBağlam: {context['prompt_context']}"
-    )
-    return call_gemini(prompt, temperature=0.7, max_tokens=400)
+    if not aciklama:
+        aciklama = f"{baslik}\n\nBu videoda yaşanan esrarengiz olayları dinleyeceksiniz. İyi seyirler.\n\n#korkuhikayeleri #korku #paranormal"
+
+    return baslik, senaryo, aciklama
 
 def main():
     context = generate_dynamic_context()
-    script = write_script(context)
-    time.sleep(20)
-    title = write_title(context)
-    time.sleep(15)
-    description = write_description(context, title)
+    
+    prompt = (
+        f"Sen Türkçe korku hikayeleri anlatan popüler bir YouTube kanalı için 8-10 dakikalık uzun video içeriği üreten profesyonel bir yazarsın.\n"
+        f"KONU VE BAĞLAM: {context['prompt_context']}\n\n"
+        f"KURALLAR:\n"
+        f"1. Başlık YouTube'da doğrudan merak uyandıran, 6-10 kelimelik eksiksiz bir Türkçe cümle/ifade olmalıdır (Örn: 'Anadolu'da Issız Bir Köyde Gece Nöbetinde Yaşananlar'). ASLA yarım kelime bırakma.\n"
+        f"2. Senaryo en az 1100-1400 kelime uzunluğunda, sürükleyici, giriş-gelişme-sonuç yapısına sahip olmalıdır.\n\n"
+        f"Lütfen yanıtını AYNEN şu etiketlerle formatla:\n\n"
+        f"===BASLIK===\n"
+        f"Tam ve eksiksiz video başlığı\n"
+        f"===SENARYO===\n"
+        f"Hikaye metni\n"
+        f"===ACIKLAMA===\n"
+        f"Video açıklaması ve etiketler\n"
+    )
+
+    raw_text = call_gemini(prompt, temperature=0.85, max_tokens=4096)
+    baslik, senaryo, aciklama = parse_long_response(raw_text)
 
     with open("output/senaryo.txt", "w", encoding="utf-8") as f:
-        f.write(script)
-    with open("output/baslik.txt", "w", encoding="utf-8") as f:
-        f.write(title)
-    with open("output/aciklama.txt", "w", encoding="utf-8") as f:
-        f.write(description)
+        f.write(senaryo)
         
-    tema_ciktisi = {"tema": context["tema"], "mekan": context["mekan"], "anlatici": context["anlatici"]}
+    with open("output/baslik.txt", "w", encoding="utf-8") as f:
+        f.write(baslik)
+        
+    with open("output/aciklama.txt", "w", encoding="utf-8") as f:
+        f.write(aciklama)
+        
+    tema_ciktisi = {
+        "tema": context["tema"],
+        "mekan": context["mekan"],
+        "anlatici": context["anlatici"]
+    }
     with open("output/tema.json", "w", encoding="utf-8") as f:
         json.dump(tema_ciktisi, f, ensure_ascii=False)
+        
     with open("output/playlist_id.txt", "w", encoding="utf-8") as f:
         f.write(context.get("playlist_id", ""))
+
+    print(f"✅ Uzun Video Hazır: Başlık -> '{baslik}' | Kelime Sayısı -> {len(senaryo.split())}")
 
 if __name__ == "__main__":
     main()
