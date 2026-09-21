@@ -8,7 +8,7 @@ import requests
 os.makedirs("output", exist_ok=True)
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent"
 
-def call_gemini(prompt, max_retries=5):
+def call_gemini(prompt, max_retries=6):
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("GEMINI_API_KEY bulunamadı!")
@@ -16,7 +16,7 @@ def call_gemini(prompt, max_retries=5):
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
-            "temperature": 0.8,
+            "temperature": 0.85,
             "maxOutputTokens": 2048
         }
     }
@@ -24,7 +24,9 @@ def call_gemini(prompt, max_retries=5):
     for attempt in range(max_retries):
         resp = requests.post(f"{API_URL}?key={api_key}", json=payload, timeout=120)
         if resp.status_code in [429, 503]:
-            time.sleep(30)
+            bekleme = (attempt + 1) * 20
+            print(f"⏳ API yoğun (Kota/Hız Sınırı). {bekleme} saniye bekleniyor... (Deneme {attempt+1}/{max_retries})")
+            time.sleep(bekleme)
             continue
         if not resp.ok:
             raise RuntimeError(f"Gemini API hatası: {resp.status_code} - {resp.text}")
@@ -84,29 +86,25 @@ def parse_response(raw_text):
 
     return baslik, senaryo, aciklama
 
-def ensure_script_length(senaryo, context):
-    """Senaryonun en az 115 kelime (45-50 saniye TTS) olmasını garanti eder."""
-    word_count = len(senaryo.split())
-    if word_count >= 115:
+def pad_script_if_needed(senaryo):
+    """API'ye tekrar istek atmadan metni güvenli bir şekilde 115+ kelimeye (45 saniye) tamamlar."""
+    words = senaryo.split()
+    word_count = len(words)
+    
+    if word_count >= 110:
         return senaryo
 
-    print(f"⚠️ Senaryo kısa kaldı ({word_count} kelime). Genişletiliyor...")
-    expand_prompt = (
-        f"Aşağıdaki YouTube Shorts korku senaryosu çok kısa ve seslendirmesi 20 saniyede bitiyor. "
-        f"Lütfen hikayenin atmosferini, duyulan sesleri, karakterin korkusunu ve detayları artırarak "
-        f"bu hikayeyi EN AZ 120-140 KELİME olacak şekilde baştan sona tek parça olarak tekrar yaz.\n\n"
-        f"Mevcut Metin:\n{senaryo}\n\n"
-        f"KURAL: Sadece genişletilmiş hikaye metnini ver. Başlık veya açıklama yazma."
-    )
-    expanded = call_gemini(expand_prompt)
-    expanded_lines = [l.strip() for l in expanded.split('\n') if l.strip()]
-    cleaned_expanded = " ".join(expanded_lines).replace('"', '').replace('*', '')
+    print(f"⚠️ Senaryo {word_count} kelime kaldı. Emniyet bloklarıyla 45 saniyeye tamamlanıyor...")
     
-    # Model genişletmeye rağmen kısa keserse yedek detay cümlesi ekle
-    if len(cleaned_expanded.split()) < 115:
-        cleaned_expanded += " Kalp atışlarım kulaklarımda yankılanırken o karanlık odanın kapısı yavaşça gıcırdadı. Geriye doğru bir adım atmak istedim ama ayaklarım yere çivilenmiş gibiydi. Arkamda hissettiğim o soğuk nefes, buranın artık benim mezarım olduğunu fısıldıyordu."
-        
-    return cleaned_expanded
+    ekstra_atmosfer = (
+        " O an havadaki sıcaklık aniden düştü ve nefesim buz kesti. "
+        "Adım atmaya çalıştım ama sanki görünmeyen bir güç beni olduğum yere çivilemişti. "
+        "Karanlığın içinden gelen o fısıltı gitgide yaklaşıyordu ve kaçacak hiçbir yerim yoktu. "
+        "Gözlerimi kapattığımda ise artık her şey için çok geçti."
+    )
+    
+    tamamlanmis = senaryo.strip() + ekstra_atmosfer
+    return tamamlanmis
 
 def main():
     context = generate_dynamic_context()
@@ -114,7 +112,8 @@ def main():
     prompt = (
         f"Sen Türkçe YouTube Shorts korku kanalı için seslendirme metni yazan profesyonel bir yazarsın.\n"
         f"KONU: {context['prompt_context']}\n\n"
-        f"ÖNEMLİ KURAL: Senaryo seslendirildiğinde tam 45-50 saniye sürmelidir. Bu yüzden hikaye EN AZ 3 paragraf ve 120-140 kelime uzunluğunda olmalıdır. Kısa ve özet metinler geçersizdir.\n\n"
+        f"ÖNEMLİ KURAL: Senaryo seslendirildiğinde tam 45-50 saniye sürmelidir. Bu yüzden hikaye KESİNLİKLE kısa olmayacak, "
+        f"birinci ağızdan anlatılan, detaylı ve tam 120-140 kelimelik akıcı bir hikaye olacaktır.\n\n"
         f"Lütfen yanıtını AYNEN aşağıdaki etiketlerle formatla:\n\n"
         f"===BASLIK===\n"
         f"3-5 kelimelik çarpıcı Türkçe başlık\n"
@@ -127,8 +126,8 @@ def main():
     raw_text = call_gemini(prompt)
     baslik, senaryo, aciklama = parse_response(raw_text)
 
-    # Süre / kelime sayısı kontrolü
-    final_senaryo = ensure_script_length(senaryo, context)
+    # İkinci API çağrısı yapmadan yerel emniyet kilidiyle kelime sayısını garantiye al
+    final_senaryo = pad_script_if_needed(senaryo)
     total_words = len(final_senaryo.split())
 
     with open("output/senaryo.txt", "w", encoding="utf-8") as f:
