@@ -8,7 +8,7 @@ import requests
 os.makedirs("output", exist_ok=True)
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent"
 
-def call_gemini(prompt, max_retries=6):
+def call_gemini(prompt, max_retries=3):
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("GEMINI_API_KEY bulunamadı!")
@@ -18,26 +18,52 @@ def call_gemini(prompt, max_retries=6):
         "generationConfig": {
             "temperature": 0.85,
             "maxOutputTokens": 2048
-        }
+        },
+        "safetySettings": [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+        ]
     }
 
     for attempt in range(max_retries):
-        resp = requests.post(f"{API_URL}?key={api_key}", json=payload, timeout=120)
+        resp = requests.post(f"{API_URL}?key={api_key}", json=payload, timeout=90)
         if resp.status_code in [429, 503]:
-            bekleme = (attempt + 1) * 20
-            print(f"⏳ API yoğun (Kota/Hız Sınırı). {bekleme} saniye bekleniyor... (Deneme {attempt+1}/{max_retries})")
+            bekleme = (attempt + 1) * 15
+            print(f"⏳ API meşgul. {bekleme} saniye bekleniyor... (Deneme {attempt+1}/{max_retries})")
             time.sleep(bekleme)
             continue
         if not resp.ok:
-            raise RuntimeError(f"Gemini API hatası: {resp.status_code} - {resp.text}")
+            print(f"⚠️ Gemini API hatası: {resp.status_code} - {resp.text}")
+            time.sleep(5)
+            continue
         
         data = resp.json()
-        try:
-            return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-        except Exception:
-            raise RuntimeError("API yanıtı okunamadı.")
-            
-    raise RuntimeError("Gemini API'ye ulaşılamadı.")
+        candidates = data.get("candidates", [])
+        if candidates:
+            first = candidates[0]
+            content = first.get("content", {})
+            parts = content.get("parts", [])
+            if parts and "text" in parts[0]:
+                return parts[0]["text"].strip()
+            finish_reason = first.get("finish_reason")
+            print(f"⚠️ Yanıt boş geldi (Sebep: {finish_reason}).")
+
+    print("⚠️ API yanıt vermedi, acil durum korku senaryosu devreye giriyor.")
+    return (
+        "===BASLIK===\n"
+        "Terk Edilmiş Odanın Gizemi\n"
+        "===SENARYO===\n"
+        "Gece yarısı eski binanın bodrum katından gelen tıkırtıları kontrol etmek için aşağı indim. "
+        "Fenerimin cılız ışığı paslanmış demir kapıya vurduğunda kapının hafifçe aralık olduğunu fark ettim. "
+        "İçeriye adım attığım an kapı büyük bir gürültüyle üzerime kapandı. "
+        "Etrafta sadece ağır bir küf kokusu ve duvarların arasından yükselen kesik kesik nefes sesleri vardı. "
+        "Feneri duvara tuttuğumda taze kanla yazılmış tek bir cümle gördüm: Buradan asla çıkamayacaksın. "
+        "O an arkamdaki soğuk nefesi ensemde hissettim ve donup kaldım.\n"
+        "===ACIKLAMA===\n"
+        "Terk edilmiş bodrumda yaşanan korkunç olay. #shorts #korku #hikaye"
+    )
 
 def generate_dynamic_context():
     mekanlar = [
@@ -87,55 +113,46 @@ def parse_response(raw_text):
     return baslik, senaryo, aciklama
 
 def pad_script_if_needed(senaryo):
-    """API'ye tekrar istek atmadan metni güvenli bir şekilde 115+ kelimeye (45 saniye) tamamlar."""
     words = senaryo.split()
     word_count = len(words)
-    
     if word_count >= 110:
         return senaryo
 
-    print(f"⚠️ Senaryo {word_count} kelime kaldı. Emniyet bloklarıyla 45 saniyeye tamamlanıyor...")
-    
+    print(f"⚠️ Senaryo {word_count} kelime kaldı. 45 saniyeye tamamlanıyor...")
     ekstra_atmosfer = (
         " O an havadaki sıcaklık aniden düştü ve nefesim buz kesti. "
         "Adım atmaya çalıştım ama sanki görünmeyen bir güç beni olduğum yere çivilemişti. "
         "Karanlığın içinden gelen o fısıltı gitgide yaklaşıyordu ve kaçacak hiçbir yerim yoktu. "
         "Gözlerimi kapattığımda ise artık her şey için çok geçti."
     )
-    
-    tamamlanmis = senaryo.strip() + ekstra_atmosfer
-    return tamamlanmis
+    return senaryo.strip() + ekstra_atmosfer
 
 def main():
     context = generate_dynamic_context()
     
     prompt = (
-        f"Sen Türkçe YouTube Shorts korku kanalı için seslendirme metni yazan profesyonel bir yazarsın.\n"
+        f"Sen Türkçe YouTube Shorts kanalı için kurgusal gizem ve gerilim hikayesi yazan bir yazarsın.\n"
         f"KONU: {context['prompt_context']}\n\n"
-        f"ÖNEMLİ KURAL: Senaryo seslendirildiğinde tam 45-50 saniye sürmelidir. Bu yüzden hikaye KESİNLİKLE kısa olmayacak, "
-        f"birinci ağızdan anlatılan, detaylı ve tam 120-140 kelimelik akıcı bir hikaye olacaktır.\n\n"
-        f"Lütfen yanıtını AYNEN aşağıdaki etiketlerle formatla:\n\n"
+        f"KURAL: Şiddet ve nefret içermeyen, tamamen atmosferik ve merak uyandırıcı 120-140 kelimelik birinci ağızdan bir hikaye yaz.\n"
+        f"Yanıtı AYNEN şu etiketlerle ver:\n\n"
         f"===BASLIK===\n"
-        f"3-5 kelimelik çarpıcı Türkçe başlık\n"
+        f"3-5 kelimelik gizemli başlık\n"
         f"===SENARYO===\n"
-        f"Detaylı, gerilimli, birinci ağızdan anlatılan tam 120-140 kelimelik hikaye metni.\n"
+        f"120-140 kelimelik hikaye metni\n"
         f"===ACIKLAMA===\n"
-        f"Kısa video açıklaması ve #shorts #korku #hikaye etiketleri\n"
+        f"Kısa açıklama ve #shorts #gizem etiketleri\n"
     )
 
     raw_text = call_gemini(prompt)
     baslik, senaryo, aciklama = parse_response(raw_text)
 
-    # İkinci API çağrısı yapmadan yerel emniyet kilidiyle kelime sayısını garantiye al
     final_senaryo = pad_script_if_needed(senaryo)
     total_words = len(final_senaryo.split())
 
     with open("output/senaryo.txt", "w", encoding="utf-8") as f:
         f.write(final_senaryo)
-        
     with open("output/baslik.txt", "w", encoding="utf-8") as f:
         f.write(baslik)
-        
     with open("output/aciklama.txt", "w", encoding="utf-8") as f:
         f.write(aciklama)
         
@@ -146,11 +163,10 @@ def main():
     }
     with open("output/tema.json", "w", encoding="utf-8") as f:
         json.dump(tema_ciktisi, f, ensure_ascii=False)
-        
     with open("output/playlist_id.txt", "w", encoding="utf-8") as f:
         f.write(context.get("playlist_id", ""))
 
-    print(f"✅ Senaryo tamamlandı: {total_words} kelime (Tahmini TTS süresi: {total_words/2.5:.1f} sn) | Başlık: {baslik}")
+    print(f"✅ Senaryo tamamlandı: {total_words} kelime | Başlık: {baslik}")
 
 if __name__ == "__main__":
     main()
