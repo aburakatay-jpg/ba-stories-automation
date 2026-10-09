@@ -47,10 +47,10 @@ jobs:
       - name: Ses Dosyası (TTS) Üretimi
         run: |
           python scripts/generate_tts.py output/senaryo.txt output/ses.mp3
-
       - name: Sahne Görsellerini Üret
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
         run: |
           python scripts/generate_scene_images.py output/tema.json output/baslik.txt output/senaryo.txt output
 
