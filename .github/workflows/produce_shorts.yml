@@ -45,6 +45,9 @@ jobs:
           python scripts/generate_thumbnail.py output/tema.json output/baslik.txt output/thumbnail.jpg
 
       - name: Ses Dosyası (TTS) Üretimi
+        env:
+          AZURE_TTS_KEY: ${{ secrets.AZURE_TTS_KEY }}
+          AZURE_TTS_REGION: ${{ secrets.AZURE_TTS_REGION }}
         run: |
           python scripts/generate_tts.py output/senaryo.txt output/ses.mp3
       - name: Sahne Görsellerini Üret
