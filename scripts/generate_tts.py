@@ -1,59 +1,99 @@
+#!/usr/bin/env python3
 import sys
-import asyncio
-import edge_tts
-import json
 import os
+import asyncio
+import requests
+import xml.etree.ElementTree as ET
 
-async def generate_audio(text, output_file, voice):
-    communicate = edge_tts.Communicate(text, voice)
-    await communicate.save(output_file)
+def generate_azure_tts(text, output_file, voice_name="tr-TR-AhmetNeural"):
+    """GitHub Secrets'taki resmi Azure Speech API'yi kullanır (403 vermez)."""
+    key = os.environ.get("AZURE_TTS_KEY")
+    region = os.environ.get("AZURE_TTS_REGION", "eastus")
 
-async def main_async(text, output_file, anlatici="erkek"):
-    # Senaryodaki anlatıcıya göre öncelikli sesi belirle
-    if anlatici == "kadin":
-        voices = ["tr-TR-EmelNeural", "tr-TR-SinanNeural"]
-    else:
-        voices = ["tr-TR-SinanNeural", "tr-TR-EmelNeural"]
-        
-    for voice in voices:
-        try:
-            print(f"🗣️ Ses deneniyor: {voice}")
-            await generate_audio(text, output_file, voice)
-            print(f"✅ Ses kaydedildi: {output_file} (ses: {voice})")
-            return
-        except Exception as e:
-            print(f"⚠️ {voice} ile ses oluşturulamadı: {e}")
-            
-    raise RuntimeError("Hiçbir ses çalışmadı.")
+    if not key:
+        return False
+
+    print(f"🎙️ Azure Speech ile seslendiriliyor ({voice_name})...")
+    url = f"https://{region}.tts.speech.microsoft.com/cognitiveservices/v1"
+    headers = {
+        "Ocp-Apim-Subscription-Key": key,
+        "Content-Type": "application/ssml+xml",
+        "X-Microsoft-OutputFormat": "audio-16khz-128kbitrate-mono-mp3",
+        "User-Agent": "BAShortsAutomation"
+    }
+
+    # Metni XML güvenli hale getir
+    safe_text = (
+        text.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+            .replace("'", "&apos;")
+    )
+
+    ssml = f"""<speak version='1.0' xml:lang='tr-TR'>
+        <voice xml:lang='tr-TR' name='{voice_name}'>
+            <prosody rate='0%'>{safe_text}</prosody>
+        </voice>
+    </speak>"""
+
+    try:
+        resp = requests.post(url, headers=headers, data=ssml.encode("utf-8"), timeout=60)
+        if resp.ok and len(resp.content) > 5000:
+            with open(output_file, "wb") as f:
+                f.write(resp.content)
+            print(f"✅ Azure TTS başarılı: {output_file}")
+            return True
+        else:
+            print(f"⚠️ Azure TTS yanıt kodu: {resp.status_code} - {resp.text}")
+    except Exception as e:
+        print(f"⚠️ Azure TTS hatası: {e}")
+
+    return False
+
+async def generate_edge_tts(text, output_file, voice_name="tr-TR-AhmetNeural"):
+    """Yedek: edge-tts"""
+    try:
+        import edge_tts
+        print(f"🗣️ Edge-TTS deneniyor: {voice_name}")
+        communicate = edge_tts.Communicate(text, voice_name)
+        await communicate.save(output_file)
+        if os.path.exists(output_file) and os.path.getsize(output_file) > 5000:
+            print(f"✅ Edge-TTS başarılı: {output_file}")
+            return True
+    except Exception as e:
+        print(f"⚠️ Edge-TTS hatası: {e}")
+    return False
 
 def main():
     if len(sys.argv) < 3:
-        print("Kullanım: generate_tts.py <metin_dosyası> <çıktı_mp3>")
+        print("Kullanım: generate_tts.py <senaryo.txt> <output.mp3>")
         sys.exit(1)
-        
+
     input_txt = sys.argv[1]
     output_mp3 = sys.argv[2]
-    
-    # tema.json dosyasından anlatıcı bilgisini çek
-    anlatici = "erkek" # Herhangi bir hataya karşı varsayılan değer
-    tema_path = "output/tema.json"
-    if os.path.exists(tema_path):
-        with open(tema_path, "r", encoding="utf-8") as f:
-            try:
-                tema_data = json.load(f)
-                anlatici = tema_data.get("anlatici", "erkek")
-                print(f"Okunan anlatıcı profili: {anlatici}")
-            except json.JSONDecodeError:
-                print("tema.json okunamadı, varsayılan erkek sesi kullanılacak.")
-    
-    with open(input_txt, 'r', encoding='utf-8') as f:
+
+    with open(input_txt, "r", encoding="utf-8") as f:
         text = f.read().strip()
-        
+
     if not text:
-        print("Metin boş, ses oluşturulamadı.")
+        print("Hata: Senaryo metni boş!")
         sys.exit(1)
-        
-    asyncio.run(main_async(text, output_mp3, anlatici))
+
+    # 1. Deneme: Resmi Azure TTS (AhmetNeural)
+    success = generate_azure_tts(text, output_mp3, "tr-TR-AhmetNeural")
+
+    # 2. Deneme: Alternatif kadın ses (EmelNeural)
+    if not success:
+        success = generate_azure_tts(text, output_mp3, "tr-TR-EmelNeural")
+
+    # 3. Deneme: edge-tts fallback
+    if not success:
+        success = asyncio.run(generate_edge_tts(text, output_mp3, "tr-TR-AhmetNeural"))
+
+    if not success:
+        print("❌ Hiçbir TTS yöntemiyle ses üretilemedi!")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
